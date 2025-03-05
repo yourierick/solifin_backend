@@ -1,0 +1,94 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\UserPack;
+use App\Models\CommissionRate;
+use App\Models\Commission;
+use App\Models\User;
+use App\Notifications\CommissionReceived;
+
+class CommissionService
+{
+    public function distributeCommissions(UserPack $purchase, $duration_months)
+    {
+        $currentUser = $purchase->user;
+        $currentSponsor = User::find($purchase->sponsor_id);
+        $packPrice = $purchase->pack->price * $duration_months;
+        $level = 1;
+        $maxLevel = 4; // Maximum 4 générations
+
+        while ($currentSponsor && $level <= $maxLevel) {
+            // Récupérer le taux de commission pour ce niveau
+            $rate = CommissionRate::where('pack_id', $purchase->pack_id)
+                ->where('level', $level)
+                ->first();
+            if ($rate) {
+                // Calculer le montant de la commission
+                $amount = ($packPrice * $rate->rate) / 100;
+
+                // Créer la commission
+                $commission = Commission::create([
+                    'user_id' => $currentSponsor->id,
+                    'source_user_id' => $currentUser->id,
+                    'pack_id' => $purchase->pack_id,
+                    'amount' => $amount,
+                    'level' => $level,
+                    'status' => 'pending'
+                ]);
+
+                // Notifier le parrain
+                //$currentSponsor->notify(new CommissionReceived($amount, $purchase, $level));
+
+                // Traiter immédiatement la commission
+                $this->processCommission($commission->id);
+            }
+
+            // Passer au parrain suivant
+            $sponsorPack = UserPack::where('user_id', $currentSponsor->id)
+                ->where('pack_id', $purchase->pack_id)
+                ->where('payment_status', 'completed')
+                ->first();
+            
+            if ($sponsorPack && $sponsorPack->sponsor_id) {
+                $currentSponsor = User::find($sponsorPack->sponsor_id);
+                $level++;
+            } else {
+                break;
+            }
+        }
+    }
+
+    public function processCommission($commissionId)
+    {
+        try {
+            // Vérifier si l'utilisateur a un portefeuille
+            $commission = Commission::find($commissionId);
+            $wallet = $commission->sponsor_user->wallet;
+            if (!$wallet) {
+                throw new \Exception('L\'utilisateur n\'a pas de portefeuille');
+            }
+
+            // Mettre à jour le solde du portefeuille
+            $wallet->balance += $commission->amount;
+            $wallet->total_earned += $commission->amount;
+            $wallet->save();
+
+            // Marquer la commission comme traitée
+            $commission->update([
+                'status' => 'completed',
+                'processed_at' => now()
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            // En cas d'erreur, marquer la commission comme échouée
+            $commission->update([
+                'status' => 'failed',
+                'error_message' => $e->getMessage()
+            ]);
+
+            return false;
+        }
+    }
+}

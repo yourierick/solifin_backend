@@ -1,0 +1,180 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+    /* Animations de base */
+    .fade-in-up {
+        animation: fadeInUp 0.8s ease-out forwards;
+        opacity: 0;
+    }
+    .fade-in {
+        animation: fadeIn 1s ease-out forwards;
+        opacity: 0;
+    }
+    .slide-in-left {
+        animation: slideInLeft 0.8s ease-out forwards;
+        opacity: 0;
+    }
+    .slide-in-right {
+        animation: slideInRight 0.8s ease-out forwards;
+        opacity: 0;
+    }
+    .bounce-in {
+        animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+        opacity: 0;
+    }
+
+    /* Définition des animations */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(40px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    @keyframes slideInLeft {
+        from {
+            opacity: 0;
+            transform: translateX(-100px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(100px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    @keyframes bounceIn {
+        from {
+            opacity: 0;
+            transform: scale(0.3);
+        }
+        50% {
+            opacity: 0.9;
+            transform: scale(1.1);
+        }
+        80% {
+            opacity: 1;
+            transform: scale(0.89);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    /* Effets au survol */
+    .hover-scale {
+        @apply transition-all duration-300 ease-in-out;
+    }
+    .hover-scale:hover {
+        @apply transform scale-105 shadow-lg;
+    }
+    
+    .hover-lift {
+        @apply transition-all duration-300 ease-in-out;
+    }
+    .hover-lift:hover {
+        @apply transform -translate-y-2 shadow-lg;
+    }
+
+    .hover-glow {
+        @apply transition-all duration-300 ease-in-out;
+    }
+    .hover-glow:hover {
+        box-shadow: 0 0 20px rgba(50, 168, 82, 0.3);
+    }
+
+    /* Animation des boutons */
+    .btn-animate {
+        @apply relative overflow-hidden transition-all duration-300 ease-in-out;
+    }
+    .btn-animate:after {
+        content: '';
+        @apply absolute top-0 left-[-100%] w-full h-full transition-all duration-500;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    }
+    .btn-animate:hover:after {
+        @apply left-full;
+    }
+
+    /* Animation des cartes */
+    .card-animate {
+        @apply transition-all duration-300 ease-in-out;
+    }
+    .card-animate:hover {
+        @apply transform -translate-y-2 scale-[1.02] shadow-lg;
+    }
+
+    /* Animation des statistiques */
+    .counter {
+        @apply transition-all duration-500 ease-in-out;
+    }
+    .counter:hover {
+        @apply transform scale-110 text-solifin-500;
+    }
+
+    /* Effet de parallaxe */
+    .parallax {
+        @apply transition-transform duration-300 ease-out;
+    }
+    .parallax:hover {
+        transform: perspective(1000px) rotateX(5deg) rotateY(5deg);
+    }
+
+    /* Styles du carrousel */
+    .carousel {
+        @apply relative w-full h-full overflow-hidden;
+        background-color: theme('colors.solifin.900');
+    }
+
+    .carousel-slide {
+        @apply absolute inset-0 w-full h-full opacity-0;
+        transition: opacity 0.5s ease-in-out, visibility 0.5s ease-in-out;
+        visibility: hidden;
+    }
+
+    .carousel-slide.active {
+        @apply opacity-100;
+        visibility: visible;
+        z-index: 1;
+    }
+
+    .carousel-slide img {
+        @apply absolute inset-0 w-full h-full object-cover;
+    }
+
+    .carousel-nav {
+        @apply absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-4 p-2 rounded-full bg-black/20;
+        z-index: 20;
+    }
+
+    .carousel-dot {
+        @apply w-3 h-3 rounded-full bg-white/40 cursor-pointer border-2 border-transparent;
+        transition: all 0.3s ease-in-out;
+    }
+
+    .carousel-dot:hover {
+        @apply bg-white/60 border-white/60;
+    }
+
+    .carousel-dot.active {
+        @apply bg-white border-solifin-500 scale-110;
+    }
+}
