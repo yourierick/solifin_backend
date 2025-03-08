@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Wallet extends Model
 {
@@ -41,7 +42,7 @@ class Wallet extends Model
      * @param array|null $metadata Métadonnées supplémentaires
      * @return WalletTransaction
      */
-    public function addFunds(float $amount, ?string $description = null, ?array $metadata = null): WalletTransaction
+    public function addFunds(float $amount, string $type, string $status, ?array $metadata = null): WalletTransaction
     {
         $this->balance += $amount;
         $this->total_earned += $amount;
@@ -49,8 +50,8 @@ class Wallet extends Model
 
         return $this->transactions()->create([
             'amount' => $amount,
-            'type' => 'credit',
-            'description' => $description ?? 'Commission ajoutée',
+            'type' => $type,
+            'status' => $status,
             'metadata' => $metadata,
         ]);
     }
@@ -62,7 +63,8 @@ class Wallet extends Model
      * @param array|null $metadata Métadonnées supplémentaires
      * @return WalletTransaction|false
      */
-    public function withdrawFunds(float $amount, ?string $description = null, ?array $metadata = null): WalletTransaction|false
+    
+     public function withdrawFunds(float $amount, string $type, string $status, ?array $metadata = null): WalletTransaction|false
     {
         if ($this->balance >= $amount) {
             $this->balance -= $amount;
@@ -71,8 +73,8 @@ class Wallet extends Model
 
             return $this->transactions()->create([
                 'amount' => $amount,
-                'type' => 'debit',
-                'description' => $description ?? 'Retrait effectué',
+                'type' => $type,
+                'status' => $status,
                 'metadata' => $metadata,
             ]);
         }
@@ -87,7 +89,7 @@ class Wallet extends Model
     public function getCommissionsByPack(): array
     {
         return $this->transactions()
-            ->where('type', 'credit')
+            ->where('type', 'commission')
             ->whereNotNull('metadata->pack_id')
             ->get()
             ->groupBy('metadata.pack_id')

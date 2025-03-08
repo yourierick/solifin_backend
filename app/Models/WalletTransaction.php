@@ -13,7 +13,7 @@ class WalletTransaction extends Model
         'wallet_id',
         'amount',
         'type',
-        'description',
+        'status',
         'metadata',
     ];
 

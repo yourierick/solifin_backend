@@ -27,21 +27,37 @@ class CommissionService
                 // Calculer le montant de la commission
                 $amount = ($packPrice * $rate->rate) / 100;
 
-                // Créer la commission
-                $commission = Commission::create([
-                    'user_id' => $currentSponsor->id,
-                    'source_user_id' => $currentUser->id,
-                    'pack_id' => $purchase->pack_id,
-                    'amount' => $amount,
-                    'level' => $level,
-                    'status' => 'pending'
-                ]);
 
-                // Notifier le parrain
-                //$currentSponsor->notify(new CommissionReceived($amount, $purchase, $level));
+                //Vérifier si le pack du sponsor est actif
+                $checkPack = $currentSponsor->packs()->where('pack_id', $purchase->pack_id)->first();
 
-                // Traiter immédiatement la commission
-                $this->processCommission($commission->id);
+                if ($checkPack->status === "active") {
+                    // Créer la commission
+                    $commission = Commission::create([
+                        'user_id' => $currentSponsor->id,
+                        'source_user_id' => $currentUser->id,
+                        'pack_id' => $purchase->pack_id,
+                        'amount' => $amount,
+                        'level' => $level,
+                        'status' => 'pending'
+                    ]);
+
+                    // Notifier le parrain
+                    //$currentSponsor->notify(new CommissionReceived($amount, $purchase, $level));
+
+                    // Traiter immédiatement la commission
+                    $this->processCommission($commission->id);
+                }else {
+                    $commission = Commission::create([
+                        'user_id' => $currentSponsor->id,
+                        'source_user_id' => $currentUser->id,
+                        'pack_id' => $purchase->pack_id,
+                        'amount' => $amount,
+                        'level' => $level,
+                        'status' => 'failed',
+                        'error_message' => 'pack non actif lors de la distribution des commissions'
+                    ]);
+                }
             }
 
             // Passer au parrain suivant
@@ -70,9 +86,9 @@ class CommissionService
             }
 
             // Mettre à jour le solde du portefeuille
-            $wallet->balance += $commission->amount;
-            $wallet->total_earned += $commission->amount;
-            $wallet->save();
+            $wallet->addFunds($commission->amount, "commission", "completed", [ "source_id"=>$commission->source_user_id, "source"=>$commission->source_user->name, 
+            "pack_name"=>$commission->pack->name, "pack_id"=>$commission->pack->id]);
+    
 
             // Marquer la commission comme traitée
             $commission->update([

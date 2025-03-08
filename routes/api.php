@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\CommissionRateController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Admin\PackController;
 use App\Http\Controllers\Admin\WalletController;
+use App\Http\Controllers\User\WalletUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 
@@ -75,6 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
 
+    Route::get('/userwallet/data', [WalletUserController::class, 'getWalletData']);
     // Déconnexion
     Route::middleware('auth:sanctum')->post('/logout', [LoginController::class, 'logout']);
 });

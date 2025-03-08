@@ -1,37 +1,28 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
 use App\Models\Wallet;
-use App\Models\WalletSystem;
-use App\Models\WalletSystemTransaction;
+use App\Models\WalletTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
-class WalletController extends Controller
+class WalletUserController extends Controller
 {
     public function getWalletData()
     {
         try {
             // Récupérer le wallet de l'admin connecté
             $userWallet = Wallet::where('user_id', Auth::id())->first();
-            $adminWallet = $userWallet ? [
+            $Wallet = $userWallet ? [
                 'balance' => number_format($userWallet->balance, 2) . ' $',
                 'total_earned' => number_format($userWallet->total_earned, 2) . ' $',
                 'total_withdrawn' => number_format($userWallet->total_withdrawn, 2) . ' $',
             ] : null;
 
-            // Récupérer le wallet system (il n'y en a qu'un seul)
-            $systemWallet = WalletSystem::first();
-            $systemWalletData = $systemWallet ? [
-                'balance' => number_format($systemWallet->balance, 2) . ' $',
-                'total_in' => number_format($systemWallet->total_in, 2) . ' $',
-                'total_out' => number_format($systemWallet->total_out, 2) . ' $',
-            ] : null;
-
-            // Récupérer les transactions du wallet system
-            $transactions = WalletSystemTransaction::with('walletSystem')
+            // Récupérer les transactions du wallet
+            $transactions = WalletTransaction::with('wallet')->where('wallet_id', $userWallet->id)
                 ->orderBy('created_at', 'desc')
                 ->get()
                 ->map(function ($transaction) {
@@ -47,8 +38,7 @@ class WalletController extends Controller
 
             return response()->json([
                 'success' => true,
-                'adminWallet' => $adminWallet,
-                'systemWallet' => $systemWalletData,
+                'userWallet' => $userWallet,
                 'transactions' => $transactions
             ]);
         } catch (\Exception $e) {

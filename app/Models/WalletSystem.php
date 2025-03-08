@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class WalletSystem extends Model
 {
@@ -21,18 +22,20 @@ class WalletSystem extends Model
     /**
      * Ajouter des fonds au wallet système
      */
-    public function addFunds(float $amount, string $description, ?array $metadata = null)
+    public function addFunds(float $amount, string $type, string $status, array $metadata)
     {
-        return DB::transaction(function () use ($amount, $description, $metadata) {
+        return DB::transaction(function () use ($amount, $type, $status, $metadata) {
             $this->balance += $amount;
             $this->total_in += $amount;
             $this->save();
 
+            //\Log::info($this->id);
+
             return WalletSystemTransaction::create([
-                'system_wallet_id' => $this->id,
+                'wallet_system_id' => $this->id,
                 'amount' => $amount,
-                'type' => 'credit',
-                'description' => $description,
+                'type' => $type,
+                'status' => $status,
                 'metadata' => $metadata
             ]);
         });
@@ -41,11 +44,11 @@ class WalletSystem extends Model
     /**
      * Retire des fonds du wallet système
      */
-    public function deductFunds(float $amount, string $description, ?array $metadata = null)
+    public function deductFunds(float $amount, string $type, $status, ?array $metadata = null)
     {
-        return DB::transaction(function () use ($amount, $description, $metadata) {
+        return DB::transaction(function () use ($amount, $type, $status, $metadata) {
             if ($this->balance < $amount) {
-                throw new \Exception('Fonds insuffisants dans le wallet système');
+                throw new \Exception('Fonds insuffisants dans le portefeuille système');
             }
 
             $this->balance -= $amount;
@@ -55,8 +58,8 @@ class WalletSystem extends Model
             return WalletSystemsTransaction::create([
                 'system_wallet_id' => $this->id,
                 'amount' => $amount,
-                'type' => 'debit',
-                'description' => $description,
+                'type' => $type,
+                'status' => $status,
                 'metadata' => $metadata
             ]);
         });

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\UserPack;
 use App\Models\Pack;
+use App\Models\Commission;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -79,7 +80,6 @@ class PackController extends Controller
     public function downloadPack(Pack $pack, Request $request)
     {
         try {
-            \Log::info('Tentative de téléchargement du pack ' . $pack->id);
             
             // Vérifier si l'utilisateur a accès à ce pack
             $userPack = UserPack::where('user_id', $request->user()->id)
@@ -93,8 +93,6 @@ class PackController extends Controller
                     'message' => 'Vous n\'avez pas accès à ce pack'
                 ], 403);
             }
-
-            \Log::info('Chemin du fichier: ' . $pack->formations);
             
             // Vérifier si le pack a un fichier associé
             if (!$pack->formations) {
@@ -113,7 +111,6 @@ class PackController extends Controller
                 ], 404);
             }
 
-            \Log::info('Téléchargement du fichier: ' . $pack->formations);
             return Storage::disk('public')->download($pack->formations, "pack-{$pack->id}.zip");
 
         } catch (\Exception $e) {
@@ -188,44 +185,65 @@ class PackController extends Controller
                 ], 404);
             }
 
-            // Récupérer les filleuls directs (niveau 1)
-            $level1Referrals = UserPack::with('user')
+            $allGenerations = [];
+            
+            // Première génération (niveau 1)
+            $level1Referrals = UserPack::with(['user', 'sponsor', 'pack'])
                 ->where('sponsor_id', $request->user()->id)
                 ->where('pack_id', $pack->id)
                 ->get()
-                ->map(function ($referral) {
+                ->map(function ($referral) use ($request, $pack) {
+                    $commissions = Commission::where('user_id', $request->user()->id)->where('source_user_id', $referral->user_id)->where('pack_id', $pack->id)->where('status', "completed")->sum('amount');
                     return [
-                        'id' => $referral->user->id,
-                        'name' => $referral->user->name,
-                        'created_at' => $referral->created_at,
-                        'commission' => number_format($referral->commission, 2)
+                        'id' => $referral->user->id ?? null,
+                        'name' => $referral->user->name ?? 'N/A',
+                        'purchase_date' => optional($referral->purchase_date)->format('d/m/Y'),
+                        'pack_status' => $referral->status ?? 'inactive',
+                        'total_commission' => $commissions ?? 0,
+                        'sponsor_id' => $referral->sponsor_id,
+                        'referral_code' => $referral->referral_code ?? 'N/A',
+                        'pack_name' => $referral->referral_pack_name ?? 'N/A',
+                        'pack_price' => $referral->pack->price ?? 0,
+                        'expiry_date' => optional($referral->expiry_date)->format('d/m/Y')
                     ];
                 });
+            $allGenerations[] = $level1Referrals;
 
-            // Récupérer les filleuls de niveau 2
-            $level2Referrals = collect();
-            foreach ($level1Referrals as $referral) {
-                $subReferrals = UserPack::with('user')
-                    ->where('sponsor_id', $referral['id'])
-                    ->where('pack_id', $pack->id)
-                    ->get()
-                    ->map(function ($referral) {
-                        return [
-                            'id' => $referral->user->id,
-                            'name' => $referral->user->name,
-                            'created_at' => $referral->created_at,
-                            'commission' => number_format($referral->commission, 2)
-                        ];
-                    });
-                $level2Referrals = $level2Referrals->concat($subReferrals);
+            // Générations 2 à 4
+            for ($level = 2; $level <= 4; $level++) {
+                $currentGeneration = collect();
+                $previousGeneration = $allGenerations[$level - 2];
+
+                foreach ($previousGeneration as $parent) {
+                    $children = UserPack::with(['user', 'sponsor', 'pack'])
+                        ->where('sponsor_id', $parent['id'])
+                        ->where('pack_id', $pack->id)
+                        ->get()
+                        ->map(function ($referral) use ($parent, $request, $pack) {
+                            //calcul du total de commission générée par ce filleul pour cet utilisateur.
+                            $commissions = Commission::where('user_id', $request->user()->id)->where('source_user_id', $referral->user_id)->where('pack_id', $pack->id)->where('status', "completed")->sum('amount');
+                            return [
+                                'id' => $referral->user->id ?? null,
+                                'name' => $referral->user->name ?? 'N/A',
+                                'purchase_date' => optional($referral->purchase_date)->format('d/m/Y'),
+                                'pack_status' => $referral->status ?? 'inactive',
+                                'total_commission' => $commissions ?? "0 $",
+                                'sponsor_id' => $referral->sponsor_id,
+                                'sponsor_name' => $parent['name'] ?? 'N/A',
+                                'referral_code' => $referral->referral_code ?? 'N/A',
+                                'pack_name' => $referral->pack->name ?? 'N/A',
+                                'pack_price' => $referral->pack->price ?? 0,
+                                'expiry_date' => optional($referral->expiry_date)->format('d/m/Y')
+                            ];
+                        });
+                    $currentGeneration = $currentGeneration->concat($children);
+                }
+                $allGenerations[] = $currentGeneration;
             }
 
             return response()->json([
                 'success' => true,
-                'data' => [
-                    $level1Referrals->values(),
-                    $level2Referrals->values()
-                ]
+                'data' => $allGenerations
             ]);
         } catch (\Exception $e) {
             \Log::error('Erreur lors de la récupération des filleuls: ' . $e->getMessage());

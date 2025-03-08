@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\UserPack;
 use App\Models\Wallet;
+use App\Models\WalletSystem;
 use App\Models\Pack;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -37,6 +38,11 @@ class RegisterController extends Controller
 
             $pack = Pack::find($pack_id);
 
+            $total_paid = $pack->price * $validated['duration_months'];
+            $walletsystem = WalletSystem::first();
+            $walletsystem->addFunds($total_paid, "sales", "completed", ["user"=>$validated["name"], "pack_id"=>$pack->id, "pack_name"=>$pack->name, 
+            "sponsor_code"=>$validated['sponsor_code'], "duration"=>$validated['duration_months']]);
+
             // Créer l'utilisateur
             $user = User::create([
                 'name' => $validated['name'],
@@ -44,7 +50,7 @@ class RegisterController extends Controller
                 'password' => Hash::make($validated['password']),
                 'phone' => $validated['phone'],
                 'address' => $validated['address'],
-                'status' => 'active', // L'utilisateur est inactif jusqu'au paiement
+                'status' => 'active',
             ]);
 
             // Envoyer l'email de vérification

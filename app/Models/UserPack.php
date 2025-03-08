@@ -20,10 +20,12 @@ class UserPack extends Model
         'referral_code',
         'payment_status',
         'purchase_date',
+        'expiry_date'
     ];
 
     protected $casts = [
         'purchase_date' => 'datetime',
+        'expiry_date' => 'datetime',
     ];
 
     // Relation avec l'utilisateur
