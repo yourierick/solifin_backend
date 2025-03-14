@@ -23,8 +23,12 @@ class UpdateProfileRequest extends FormRequest
             ],
             'phone' => ['sometimes', 'string', 'max:20'],
             'address' => ['sometimes', 'string', 'max:255'],
-            'picture' => ['sometimes', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'],
-            'password' => ['sometimes', 'nullable', 'min:8', 'confirmed'],
+            'gender' => ['sometimes', 'string'],
+            'country' => ['sometimes', 'string'],
+            'province' => ['sometimes', 'string'],
+            'city' => ['sometimes', 'string'],
+            'picture' => ['sometimes', 'nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'],
+            'password' => ['sometimes', 'min:8', 'confirmed'],
         ];
     }
 } 

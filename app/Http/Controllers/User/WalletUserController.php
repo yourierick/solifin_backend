@@ -10,10 +10,11 @@ use Illuminate\Support\Facades\Auth;
 
 class WalletUserController extends Controller
 {
+    // Récupérer les données du wallet de l'utilisateur connecté
     public function getWalletData()
     {
         try {
-            // Récupérer le wallet de l'admin connecté
+            // Récupérer le wallet de l'utilisateur connecté
             $userWallet = Wallet::where('user_id', Auth::id())->first();
             $Wallet = $userWallet ? [
                 'balance' => number_format($userWallet->balance, 2) . ' $',
@@ -49,6 +50,25 @@ class WalletUserController extends Controller
             ], 500);
         }
     }
+
+    // Récupérer le solde du wallet de l'utilisateur connecté
+    public function getWalletBalance()
+    {
+        try {
+            $userWallet = Wallet::where('user_id', Auth::id())->first();
+            return response()->json([
+                'success' => true,
+                'balance' => number_format($userWallet->balance, 2) . ' $'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération du solde',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    
 
     public function withdraw(Request $request)
     {

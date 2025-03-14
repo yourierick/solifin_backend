@@ -13,33 +13,44 @@ class Pack extends Model
         'name',
         'description',
         'price',
+        'duration',
+        'commission_rates',
         'status',
         'avantages',
         'formations',
     ];
 
     protected $casts = [
-        'price' => 'decimal:2',
+        'commission_rates' => 'array',
+        'price' => 'float',
         'status' => 'boolean',
         'avantages' => 'array',
     ];
 
-    // Relation avec les utilisateurs qui ont acheté ce pack
+    /**
+     * Relation avec les utilisateurs qui ont acheté ce pack
+     */
+    public function user_packs()
+    {
+        return $this->hasMany(UserPack::class);
+    }
+
+    /**
+     * Relation avec les commissions générées par ce pack
+     */
+    public function commissions()
+    {
+        return $this->hasMany(Commission::class);
+    }
+
+    /**
+     * Relation avec les utilisateurs qui ont ce pack
+     */
     public function users()
     {
         return $this->belongsToMany(User::class, 'user_packs')
-                    ->withTimestamps()
-                    ->withPivot([
-                        'status',
-                        'purchase_date',
-                        'referral_prefix',
-                        'referral_pack_name',
-                        'referral_letter',
-                        'referral_number',
-                        'referral_code',
-                        'sponsor_id',
-                        'payment_status'
-                    ]);
+            ->withPivot(['status', 'purchase_date', 'expiry_date'])
+            ->withTimestamps();
     }
 
     // Relation avec les taux de commission

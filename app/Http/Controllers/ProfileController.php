@@ -12,7 +12,7 @@ class ProfileController extends Controller
     public function show(Request $request)
     {
         $user = $request->user();
-        $user->profile_picture_url = $user->profilePictureUrl;
+        $user->profile_picture_url = $user->getProfilePictureUrlAttribute();
         
         return response()->json([
             'success' => true,

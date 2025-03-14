@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Auth\PasswordResetController;
@@ -17,12 +18,12 @@ use App\Http\Controllers\Admin\JobOfferValidationController;
 use App\Http\Controllers\PackPurchaseController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Admin\CommissionRateController;
-use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Admin\PackController;
 use App\Http\Controllers\Admin\WalletController;
 use App\Http\Controllers\User\WalletUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
+use App\Http\Controllers\StatsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,8 +37,6 @@ Route::get('/packs', [App\Http\Controllers\HomeController::class, 'index']);
 Route::get('/purchases/{sponsor_code}', [PackPurchaseController::class, 'show']);
 // Route::post('/purchases/initiate', [PackPurchaseController::class, 'initiate']);
 // Route::post('/purchases/{id}/process', [PackPurchaseController::class, 'process']);
-//Route::post('/login', [LoginController::class, 'login']);
-
 
 RateLimiter::for('api', function (Request $request) {
     return Limit::perMinute(60)->by(optional($request->user())->id ?: $request->ip());
@@ -45,8 +44,10 @@ RateLimiter::for('api', function (Request $request) {
 
 Route::middleware('throttle:api')->group(function () {
     // Routes d'authentification
-    Route::post('/login', [LoginController::class, 'login']);
-    Route::post('/register/{packId}', [RegisterController::class, 'register']);
+    Route::middleware('guest')->group(function () {
+        Route::post('/login', [LoginController::class, 'login']);
+        Route::post('/register/{packId}', [RegisterController::class, 'register']);
+    });
 
     // Routes de réinitialisation de mot de passe
     Route::post('/auth/forgot-password', [PasswordResetController::class, 'sendResetLinkEmail']);
@@ -61,6 +62,21 @@ Route::middleware('throttle:api')->group(function () {
 
 // Routes protégées
 Route::middleware('auth:sanctum')->group(function () {
+    // Route pour vérifier l'authentification
+    Route::get('/user', function (Request $request) {
+        $user = $request->user();
+        $user->picture = $user->getProfilePictureUrlAttribute();
+        return $user;
+    });
+    
+    // Route pour rafraîchir la session
+    Route::post('/refresh-session', function (Request $request) {
+        $request->session()->regenerate();
+        return response()->json(['message' => 'Session rafraîchie']);
+    });
+    
+    Route::post('/logout', [LoginController::class, 'logout']);
+    
     // Profile
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'update']);
@@ -77,8 +93,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
 
     Route::get('/userwallet/data', [WalletUserController::class, 'getWalletData']);
+    Route::get('/userwallet/balance', [WalletUserController::class, 'getWalletBalance']);
     // Déconnexion
     Route::middleware('auth:sanctum')->post('/logout', [LoginController::class, 'logout']);
+
+    Route::get('/stats/global', [StatsController::class, 'getGlobalStats']);
 });
 
 // Routes protégées par l'authentification
@@ -87,8 +106,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user/packs', [\App\Http\Controllers\User\PackController::class, 'getUserPacks']);
     Route::post('/packs/{pack}/renew', [\App\Http\Controllers\User\PackController::class, 'renewPack']);
     Route::get('/packs/{pack}/download', [\App\Http\Controllers\User\PackController::class, 'downloadPack']);
-    Route::get('/packs/{pack}/stats', [\App\Http\Controllers\User\PackController::class, 'getPackStats']);
     Route::get('/packs/{pack}/referrals', [\App\Http\Controllers\User\PackController::class, 'getPackReferrals']);
+    Route::get('/packs/{pack}/detailed-stats', [\App\Http\Controllers\User\PackController::class, 'getDetailedPackStats']);
+    Route::post('/packs/purchase_a_new_pack', [\App\Http\Controllers\User\PackController::class, 'purchase_a_new_pack']);
 });
 
 // Routes admin

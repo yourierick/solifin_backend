@@ -18,6 +18,7 @@ class UserPack extends Model
         'referral_letter',
         'referral_number',
         'referral_code',
+        'link_referral',
         'payment_status',
         'purchase_date',
         'expiry_date'

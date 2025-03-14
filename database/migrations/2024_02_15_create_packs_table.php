@@ -34,6 +34,7 @@ return new class extends Migration
             $table->string('referral_letter', 1);
             $table->string('referral_number', 4);
             $table->string('referral_code')->unique();
+            $table->string('link_referral')->unique();
             $table->timestamps();
 
             $table->unique(['user_id', 'pack_id']);

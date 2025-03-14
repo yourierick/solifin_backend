@@ -31,7 +31,11 @@ class RegisterController extends Controller
                 'address' => 'required|string',
                 'phone' => 'required|string',
                 'sponsor_code' => 'nullable|exists:user_packs,referral_code',
-                'duration_months' => 'required|integer|min:1'
+                'duration_months' => 'required|integer|min:1',
+                'gender' => 'required|string',
+                'country' => 'required|string',
+                'province' => 'required|string',
+                'city' => 'required|string',
             ]);
 
             DB::beginTransaction();
@@ -49,6 +53,10 @@ class RegisterController extends Controller
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
                 'phone' => $validated['phone'],
+                'gender' => $validated['gender'],
+                'country' => $validated['country'],
+                'province' => $validated['province'],
+                'city' => $validated['city'],
                 'address' => $validated['address'],
                 'status' => 'active',
             ]);
@@ -56,8 +64,9 @@ class RegisterController extends Controller
             // Envoyer l'email de vérification
             //$user->sendEmailVerificationNotification();
 
-            //Si un code parrain est fourni, lier l'utilisateur au parrain
-            $sponsorPack = UserPack::where('referral_code', $validated['sponsor_code'])->first();
+            // Traiter le code de parrainage
+            $sponsorCode = $validated['sponsor_code'];
+            $sponsorPack = UserPack::where('referral_code', $sponsorCode)->first();
 
             // Créer le wallet
             Wallet::create([
@@ -76,6 +85,12 @@ class RegisterController extends Controller
                 $referralNumber = str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
                 $referralCode = 'SPR' . $referralLetter . $referralNumber;
             }
+
+            // Récupérer l'URL du frontend depuis le fichier .env
+            $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+
+            // Créer le lien de parrainage en utilisant l'URL du frontend
+            $referralLink = $frontendUrl . "/register?referral_code=" . $referralCode;
             
 
             // Attacher le pack à l'utilisateur
@@ -90,7 +105,8 @@ class RegisterController extends Controller
                 'referral_letter' => $referralLetter,
                 'referral_number' => $referralNumber,
                 'referral_code' => $referralCode,
-                'sponsor_id' => $sponsorPack->user_id,
+                'link_referral' => $referralLink,
+                'sponsor_id' => $sponsorPack->user_id ?? null,
             ]);
 
             $user_pack = UserPack::where('user_id', $user->id)->where('pack_id', $pack->id)->where('referral_code', $referralCode)->first();

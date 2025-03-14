@@ -25,10 +25,14 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     protected $fillable = [
         'name',
+        'gender',
         'email',
         'password',
         'phone',
         'picture',
+        'country',
+        'province',
+        'city',
         'address',
         'status',
         'is_admin',
@@ -90,6 +94,7 @@ class User extends Authenticatable implements MustVerifyEmail
                         'referral_letter',
                         'referral_number',
                         'referral_code',
+                        'link_referral',
                         'sponsor_id',
                         'payment_status'
                     ]);
