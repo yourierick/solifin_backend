@@ -146,6 +146,12 @@ class PackController extends Controller
                             $referralCode = 'SPR' . $referralLetter . $referralNumber;
                         }
 
+                        // Récupérer l'URL du frontend depuis le fichier .env
+                        $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+
+                        // Créer le lien de parrainage en utilisant l'URL du frontend
+                        $referralLink = $frontendUrl . "/register?referral_code=" . $referralCode;
+
                         // Attacher le pack à l'utilisateur
                         $user->packs()->attach($pack->id, [
                             'status' => 'active',
@@ -176,11 +182,6 @@ class PackController extends Controller
                     $walletsystem->addFunds($request->amount, "sales", "completed", ["user"=>$user->name, "pack_id"=>$pack->id, "pack_name"=>$pack->name, 
                         "duration"=>$request->months]);
 
-                    // Récupérer l'URL du frontend depuis le fichier .env
-                    $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
-
-                    // Créer le lien de parrainage en utilisant l'URL du frontend
-                    $referralLink = $frontendUrl . "/register?referral_code=" . $referralCode;
                 } else {
                     // Pour les autres méthodes de paiement (à implémenter)
                     return response()->json([

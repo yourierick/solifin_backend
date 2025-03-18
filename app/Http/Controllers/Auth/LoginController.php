@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
@@ -16,8 +18,10 @@ class LoginController extends Controller
             'password' => 'required'
         ]);
 
-        if (Auth::attempt($credentials)) {
-            $request->session()->regenerate();
+        if (Auth::attempt($credentials, true)) {
+            if (!$request->session()->has('_token')) {
+                $request->session()->regenerate();
+            }
             
             $user = Auth::user();
             $user->picture = $user->getProfilePictureUrlAttribute();
@@ -27,14 +31,17 @@ class LoginController extends Controller
             ]);
         }
 
-        return response()->json([
-            'message' => 'Les identifiants fournis sont incorrects.'
-        ], 401);
+        throw ValidationException::withMessages([
+            'email' => ['Les identifiants fournis sont incorrects.'],
+        ]);
     }
 
     public function logout(Request $request)
     {
+        // Déconnecter l'utilisateur avec le guard web
         Auth::guard('web')->logout();
+        
+        // Invalider la session
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 

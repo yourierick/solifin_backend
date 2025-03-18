@@ -16,7 +16,15 @@ class RedirectIfAuthenticated
 
         foreach ($guards as $guard) {
             if (Auth::guard($guard)->check()) {
-                return redirect()->route('dashboard');
+                // Si c'est une requête API, retourner une réponse JSON
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Déjà authentifié',
+                        'user' => Auth::user()
+                    ]);
+                }
+                // Sinon, rediriger vers la page d'accueil
+                return redirect('/');
             }
         }
 

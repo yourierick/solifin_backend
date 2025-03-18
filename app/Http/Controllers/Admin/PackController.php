@@ -78,6 +78,12 @@ class PackController extends Controller
                     $referralCode = 'SPR' . $referralLetter . $referralNumber;
                 }
 
+                // Récupérer l'URL du frontend depuis le fichier .env
+                $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+
+                // Créer le lien de parrainage en utilisant l'URL du frontend
+                $referralLink = $frontendUrl . "/register?referral_code=" . $referralCode;
+
                 $admin->packs()->attach($pack->id, [
                     'status' => 'active',
                     'purchase_date' => now(),
@@ -88,7 +94,8 @@ class PackController extends Controller
                     'referral_pack_name' => $pack->name,
                     'referral_letter' => $referralLetter,
                     'referral_number' => $referralNumber,
-                    'referral_code' => $referralCode
+                    'referral_code' => $referralCode,
+                    'link_referral' => $referralLink,
                 ]);
             }
 
