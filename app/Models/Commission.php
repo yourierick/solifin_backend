@@ -13,6 +13,7 @@ class Commission extends Model
         'amount',
         'level',
         'status',
+        'error_message'
     ];
 
     public function sponsor_user()

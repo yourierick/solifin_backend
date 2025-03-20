@@ -30,8 +30,7 @@ class CommissionService
 
                 //Vérifier si le pack du sponsor est actif
                 $checkPack = $currentSponsor->packs()->where('pack_id', $purchase->pack_id)->first();
-
-                if ($checkPack->status === "active") {
+                if ($checkPack->status == 1) {
                     // Créer la commission
                     $commission = Commission::create([
                         'user_id' => $currentSponsor->id,
@@ -45,7 +44,7 @@ class CommissionService
                     // Notifier le parrain
                     //$currentSponsor->notify(new CommissionReceived($amount, $purchase, $level));
 
-                    // Traiter immédiatement la commission
+                    // Traiter immédiatement la commissioN
                     $this->processCommission($commission->id);
                 }else {
                     $commission = Commission::create([
@@ -101,7 +100,7 @@ class CommissionService
             // En cas d'erreur, marquer la commission comme échouée
             $commission->update([
                 'status' => 'failed',
-                'error_message' => $e->getMessage()
+                'error_message' => "ggggfds",
             ]);
 
             return false;

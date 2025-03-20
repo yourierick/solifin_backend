@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class PackController extends Controller
 {
@@ -87,19 +88,20 @@ class PackController extends Controller
     public function purchase_a_new_pack(Request $request)
     {
         try {
-            $request->validate([
+            $validated = $request->validate([
                 'pack_id' => 'required|exists:packs,id',
                 'payment_method' => 'required|string',
                 'sponsor_code' => 'nullable|exists:user_packs,referral_code',
-                'months' => 'required|integer|min:1',
+                'duration_months' => 'required|integer|min:1',
                 'amount' => 'required|numeric|min:0'
             ]);
 
             $user = $request->user();
+            \Log::info($user);
             $pack = Pack::findOrFail($request->pack_id);
             
             // Vérifier si le montant est correct
-            $expectedAmount = $pack->price * $request->months;
+            $expectedAmount = $pack->price * $request->duration_months;
             if ($expectedAmount !== floatval($request->amount)) {
                 return response()->json([
                     'success' => false,
@@ -128,12 +130,12 @@ class PackController extends Controller
                         $newExpiryDate = $existingUserPack->expiry_date > now() 
                             ? Carbon::parse($existingUserPack->expiry_date) 
                             : now();
-                        $existingUserPack->expiry_date = $newExpiryDate->addMonths($request->months);
+                        $existingUserPack->expiry_date = $newExpiryDate->addMonths($request->duration_months);
                         $existingUserPack->save();
                     } else {
 
                         //Si un code parrain est fourni, lier l'utilisateur au parrain
-                        $sponsorPack = UserPack::where('referral_code', $request->sponsor_code)->first();
+                        $sponsorPack = UserPack::where('referral_code', $request->referral_code)->first();
 
                         // Générer un code de parrainage unique
                         $referralLetter = substr($pack->name, 0, 1);
@@ -176,8 +178,8 @@ class PackController extends Controller
 
                     // Ajouter le montant au wallet system
                     $walletsystem = WalletSystem::first();
-                    if (!$systemWallet) {
-                        $systemWallet = WalletSystem::create(['balance' => 0]);
+                    if (!$walletsystem) {
+                        $walletsystem = WalletSystem::create(['balance' => 0]);
                     }
                     $walletsystem->addFunds($request->amount, "sales", "completed", ["user"=>$user->name, "pack_id"=>$pack->id, "pack_name"=>$pack->name, 
                         "duration"=>$request->months]);
@@ -195,7 +197,6 @@ class PackController extends Controller
                 return response()->json([
                     'success' => true,
                     'message' => 'Pack acheté avec succès',
-                    'referral_link' => $referralLink
                 ]);
 
             } catch (\Exception $e) {

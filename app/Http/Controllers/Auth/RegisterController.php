@@ -53,10 +53,10 @@ class RegisterController extends Controller
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
                 'phone' => $validated['phone'],
-                'gender' => $validated['gender'],
-                'country' => $validated['country'],
+                'sexe' => $validated['gender'],
+                'pays' => $validated['country'],
                 'province' => $validated['province'],
-                'city' => $validated['city'],
+                'ville' => $validated['city'],
                 'address' => $validated['address'],
                 'status' => 'active',
             ]);
@@ -124,7 +124,6 @@ class RegisterController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error($e);
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'inscription'
