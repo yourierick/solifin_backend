@@ -47,6 +47,7 @@ class ProfileController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            \Log::error('Erreur lors de la mise à jour du profil : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la mise à jour du profil',

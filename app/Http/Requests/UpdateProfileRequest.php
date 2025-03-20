@@ -23,10 +23,10 @@ class UpdateProfileRequest extends FormRequest
             ],
             'phone' => ['sometimes', 'string', 'max:20'],
             'address' => ['sometimes', 'string', 'max:255'],
-            'gender' => ['sometimes', 'string'],
-            'country' => ['sometimes', 'string'],
+            'sexe' => ['sometimes', 'string'],
+            'pays' => ['sometimes', 'string'],
             'province' => ['sometimes', 'string'],
-            'city' => ['sometimes', 'string'],
+            'ville' => ['sometimes', 'string'],
             'picture' => ['sometimes', 'nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'],
             'password' => ['sometimes', 'min:8', 'confirmed'],
         ];
