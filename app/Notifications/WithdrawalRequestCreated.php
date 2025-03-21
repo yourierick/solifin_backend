@@ -2,7 +2,7 @@
 
 namespace App\Notifications;
 
-use App\Models\PaymentRequest;
+use App\Models\WithdrawalRequest;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
@@ -11,11 +11,11 @@ class WithdrawalRequestCreated extends Notification implements ShouldQueue
 {
     use Queueable;
 
-    protected $paymentRequest;
+    protected $withdrawalRequest;
 
-    public function __construct(PaymentRequest $paymentRequest)
+    public function __construct(WithdrawalRequest $withdrawalRequest)
     {
-        $this->paymentRequest = $paymentRequest;
+        $this->withdrawalRequest = $withdrawalRequest;
     }
 
     public function via($notifiable): array
@@ -26,11 +26,11 @@ class WithdrawalRequestCreated extends Notification implements ShouldQueue
     public function toArray($notifiable): array
     {
         return [
-            'message' => 'Nouvelle demande de retrait de ' . number_format($this->paymentRequest->amount, 2) . ' €',
-            'payment_request_id' => $this->paymentRequest->id,
-            'user_name' => $this->paymentRequest->user->name,
-            'amount' => $this->paymentRequest->amount,
-            'created_at' => $this->paymentRequest->created_at->format('d/m/Y H:i'),
+            'message' => 'Nouvelle demande de retrait de ' . number_format($this->withdrawalRequest->amount, 2) . ' €',
+            'withdrawal_request_id' => $this->withdrawalRequest->id,
+            'user_name' => $this->withdrawalRequest->user->name,
+            'amount' => $this->withdrawalRequest->amount,
+            'created_at' => $this->withdrawalRequest->created_at->format('d/m/Y H:i'),
         ];
     }
 } 

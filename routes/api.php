@@ -24,6 +24,7 @@ use App\Http\Controllers\User\WalletUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use App\Http\Controllers\StatsController;
+use App\Http\Controllers\WithdrawalController;
 
 /*
 |--------------------------------------------------------------------------
@@ -98,6 +99,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('auth:sanctum')->post('/logout', [LoginController::class, 'logout']);
 
     Route::get('/stats/global', [StatsController::class, 'getGlobalStats']);
+
+    // Routes pour les demandes de retrait
+    Route::post('/withdrawal/send-otp', [WithdrawalController::class, 'sendOtp']);
+    Route::post('/withdrawal/request', [WithdrawalController::class, 'request']);
+    Route::post('/withdrawal/request/{id}/cancel', [WithdrawalController::class, 'cancel']);
 });
 
 // Routes protégées par l'authentification
@@ -127,6 +133,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::get('users/{user}/referrals', [UserController::class, 'referrals']);
 
     // Routes pour la gestion des retraits (admin)
+    Route::get('/withdrawal/requests', [WithdrawalController::class, 'getRequests']);
     Route::get('withdrawal-requests', [WithdrawalRequestController::class, 'index']);
     Route::get('withdrawal-requests/{withdrawalRequest}', [WithdrawalRequestController::class, 'show']);
     Route::post('withdrawal-requests/{withdrawalRequest}/process', [WithdrawalRequestController::class, 'process']);

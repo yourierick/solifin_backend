@@ -22,7 +22,7 @@ return new class extends Migration
             $table->foreignId('wallet_id')->constrained()->onDelete('cascade');
             $table->enum('type', ['withdrawal', 'commission', 'transfer']);
             $table->decimal('amount', 10, 2);
-            $table->enum('status', ['pending', 'completed', 'failed'])->default('pending');
+            $table->enum('status', ['pending', 'completed', 'cancelled', 'failed'])->default('pending');
             $table->json('metadata')->nullable();
             $table->timestamps();
         });

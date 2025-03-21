@@ -18,7 +18,6 @@ return new class extends Migration
             $table->text('admin_note')->nullable();
             $table->foreignId('processed_by')->nullable()->constrained('users');
             $table->timestamp('processed_at')->nullable();
-            $table->timestamp('email_verified_at')->nullable();
             $table->timestamp('paid_at')->nullable();
             $table->timestamps();
         });

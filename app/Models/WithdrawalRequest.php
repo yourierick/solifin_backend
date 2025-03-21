@@ -18,7 +18,6 @@ class WithdrawalRequest extends Model
         'admin_note',
         'processed_by',
         'processed_at',
-        'email_verified_at',
         'paid_at'
     ];
 
