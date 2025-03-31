@@ -14,9 +14,17 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Services\CommissionService;
 
 class PackController extends Controller
 {
+    //pour la distribution des commissions
+    private function processCommissions(UserPack $user_pack, $duration_months)
+    {
+        $commissionService = new CommissionService();
+        $commissionService->distributeCommissions($user_pack, $duration_months);
+    }
+
     //récupérer tous les packs achetés par l'utilisateur
     public function getUserPacks(Request $request)
     {
@@ -53,10 +61,25 @@ class PackController extends Controller
     public function renewPack(Request $request, Pack $pack)
     {
         try {
+            $validated = $request->validate([
+                'payment_method' => 'required|string',
+                'payment_details'=> ['requiredif:payment_method, credit-card|mobile-money', 'array'],
+                'duration_months' => 'required|integer|min:1',
+                'amount' => 'required|numeric|min:0'
+            ]);
+
             // Vérifier si l'utilisateur a déjà ce pack
             $userPack = UserPack::where('user_id', $request->user()->id)
                 ->where('pack_id', $pack->id)
                 ->first();
+            $user = $userPack->user;
+            $expectedAmount = $pack->price * $validated['duration_months'];
+            if ($expectedAmount !== floatval($validated['amount'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Le montant calculé ne correspond pas au prix du pack'
+                ], 400);
+            }
 
             if (!$userPack) {
                 return response()->json([
@@ -65,18 +88,49 @@ class PackController extends Controller
                 ], 404);
             }
 
-            // Logique de renouvellement à implémenter
-            // Pour l'instant, on met juste à jour la date d'expiration
-            $userPack->expiry_date = now()->addMonths($request->duration_months ?? 1);
+            DB::beginTransaction();
+
+            if ($request->payment_method == 'wallet') {
+                $userWallet = $userPack->user->wallet;
+
+                $userWallet->withdrawFunds($validated['amount'], "transfer", "completed", ["pack_id"=>$pack->id, "pack_name"=>$pack->name, 
+                "duration"=>$validated['duration_months'], "payment_method"=>$validated['payment_method']]);
+            }
+
+            if ($request->payment_method == 'mobile-money') {
+                //TODO
+            }
+
+            if ($request->payment_method == 'credit-card') {
+                //TODO
+            }
+
+            // Ajouter le montant au wallet system
+            $walletsystem = WalletSystem::first();
+            if (!$walletsystem) {
+                $walletsystem = WalletSystem::create(['balance' => 0]);
+            }
+            $walletsystem->addFunds($validated['amount'], "sales", "completed", ["user"=>$user->name, "pack_id"=>$pack->id, "pack_name"=>$pack->name, 
+                "duration"=>$validated['duration_months'], "payment_method"=>$validated['payment_method'], "payment_details"=>$validated['payment_details']]);
+
+            // on met à jour la date d'expiration
+            $userPack->expiry_date = now()->addMonths($validated['duration_months']);
             $userPack->status = 'active';
             $userPack->save();
+
+            // Distribuer les commissions
+            \Log::info('1Distributing commissions for user pack: ' . $validated['duration_months']);
+            $this->processCommissions($userPack, $validated['duration_months']);
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Pack renouvelé avec succès',
-                'data' => $userPack
             ]);
         } catch (\Exception $e) {
+            DB::rollback();
+            \Log::error('Erreur lors du renouvellement du pack: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors du renouvellement du pack'
@@ -91,13 +145,13 @@ class PackController extends Controller
             $validated = $request->validate([
                 'pack_id' => 'required|exists:packs,id',
                 'payment_method' => 'required|string',
+                'payment_details'=> ['requiredif:payment_method, credit-card|mobile-money', 'array'],
                 'sponsor_code' => 'nullable|exists:user_packs,referral_code',
                 'duration_months' => 'required|integer|min:1',
                 'amount' => 'required|numeric|min:0'
             ]);
 
             $user = $request->user();
-            \Log::info($user);
             $pack = Pack::findOrFail($request->pack_id);
             
             // Vérifier si le montant est correct
@@ -155,7 +209,7 @@ class PackController extends Controller
                         $referralLink = $frontendUrl . "/register?referral_code=" . $referralCode;
 
                         // Attacher le pack à l'utilisateur
-                        $user->packs()->attach($pack->id, [
+                        $userpack = $user->packs()->attach($pack->id, [
                             'status' => 'active',
                             'purchase_date' => now(),
                             'expiry_date' => now()->addMonths($validated['duration_months']),
@@ -174,7 +228,7 @@ class PackController extends Controller
                     // Déduire le montant du wallet de l'utilisateur
                     $userWallet->balance -= $request->amount;
                     $userWallet->withdrawFunds($request->amount, "transfer", "completed", ["pack_id"=>$pack->id, "pack_name"=>$pack->name, 
-                    "duration"=>$request->months]);
+                    "duration"=>$request->duration_months, "payment_method"=>$request->payment_method]);
 
                     // Ajouter le montant au wallet system
                     $walletsystem = WalletSystem::first();
@@ -182,7 +236,7 @@ class PackController extends Controller
                         $walletsystem = WalletSystem::create(['balance' => 0]);
                     }
                     $walletsystem->addFunds($request->amount, "sales", "completed", ["user"=>$user->name, "pack_id"=>$pack->id, "pack_name"=>$pack->name, 
-                        "duration"=>$request->months]);
+                        "duration"=>$request->duration_months]);
 
                 } else {
                     // Pour les autres méthodes de paiement (à implémenter)
@@ -190,6 +244,13 @@ class PackController extends Controller
                         'success' => false,
                         'message' => 'Cette méthode de paiement n\'est pas encore disponible'
                     ], 400);
+                }
+
+                // Distribuer les commissions
+                if ($existingUserPack) {
+                    $this->processCommissions($existingUserPack, $validated['duration_months']);
+                }else {
+                    $this->processCommissions($userpack, $validated['duration_months']);
                 }
 
                 DB::commit();

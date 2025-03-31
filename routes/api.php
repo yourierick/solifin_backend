@@ -32,9 +32,9 @@ use App\Http\Controllers\WithdrawalController;
 |--------------------------------------------------------------------------
 */
 
-// Routes publiques
+// Routes publiques (chargement des packs dans la page d'accueil)
 Route::get('/packs', [App\Http\Controllers\HomeController::class, 'index']);
-// Routes d'achat de pack
+// Routes d'achat de pack (achat d'un pack lors de l'enregistrement)
 Route::get('/purchases/{sponsor_code}', [PackPurchaseController::class, 'show']);
 // Route::post('/purchases/initiate', [PackPurchaseController::class, 'initiate']);
 // Route::post('/purchases/{id}/process', [PackPurchaseController::class, 'process']);
@@ -90,8 +90,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Routes de notification
     Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread', [NotificationController::class, 'unread']);
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications/{id}', [NotificationController::class, 'delete']);
+    Route::delete('/notifications', [NotificationController::class, 'deleteAll']);
 
     Route::get('/userwallet/data', [WalletUserController::class, 'getWalletData']);
     Route::get('/userwallet/balance', [WalletUserController::class, 'getWalletBalance']);
@@ -134,6 +137,9 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
 
     // Routes pour la gestion des retraits (admin)
     Route::get('/withdrawal/requests', [WithdrawalController::class, 'getRequests']);
+    Route::post('/withdrawal/requests/{id}/approve', [WithdrawalController::class, 'approve']);
+    Route::post('/withdrawal/requests/{id}/reject', [WithdrawalController::class, 'reject']);
+    Route::delete('/withdrawal/requests/{id}', [WithdrawalController::class, 'delete']);
     Route::get('withdrawal-requests', [WithdrawalRequestController::class, 'index']);
     Route::get('withdrawal-requests/{withdrawalRequest}', [WithdrawalRequestController::class, 'show']);
     Route::post('withdrawal-requests/{withdrawalRequest}/process', [WithdrawalRequestController::class, 'process']);

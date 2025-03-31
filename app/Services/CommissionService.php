@@ -44,8 +44,8 @@ class CommissionService
                     // Notifier le parrain
                     //$currentSponsor->notify(new CommissionReceived($amount, $purchase, $level));
 
-                    // Traiter immédiatement la commissioN
-                    $this->processCommission($commission->id);
+                    // Traiter immédiatement la commission
+                    $this->processCommission($commission->id, $duration_months);
                 }else {
                     $commission = Commission::create([
                         'user_id' => $currentSponsor->id,
@@ -74,7 +74,7 @@ class CommissionService
         }
     }
 
-    public function processCommission($commissionId)
+    public function processCommission($commissionId, $duration_months)
     {
         try {
             // Vérifier si l'utilisateur a un portefeuille
@@ -86,7 +86,7 @@ class CommissionService
 
             // Mettre à jour le solde du portefeuille
             $wallet->addFunds($commission->amount, "commission", "completed", [ "source_id"=>$commission->source_user_id, "source"=>$commission->source_user->name, 
-            "pack_name"=>$commission->pack->name, "pack_id"=>$commission->pack->id]);
+            "pack_name"=>$commission->pack->name, "pack_id"=>$commission->pack->id, "duration"=>$duration_months]);
     
 
             // Marquer la commission comme traitée
@@ -100,7 +100,7 @@ class CommissionService
             // En cas d'erreur, marquer la commission comme échouée
             $commission->update([
                 'status' => 'failed',
-                'error_message' => "ggggfds",
+                'error_message' => $e->getMessage(),
             ]);
 
             return false;

@@ -274,6 +274,7 @@ class StatsController extends Controller
                 'success' => true,
                 'data' => [
                     'general_stats' => [
+                        'wallet' => $user->wallet,
                         'total_referrals' => $totalReferralsCount,
                         'referrals_by_generation' => $referralsByGeneration,
                         'active_referrals' => $activeReferralsCount,
