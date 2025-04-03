@@ -25,9 +25,11 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     protected $fillable = [
         'name',
-        'gender',
+        'sexe',
+        'account_id',
         'email',
         'password',
+        'whatsapp',
         'phone',
         'picture',
         'pays',
@@ -35,10 +37,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'ville',
         'address',
         'status',
+        'pack_de_publication_id',
         'is_admin',
         'email_verified_at',
-        'referral_code',
-        'sponsor_id',
     ];
 
     /**
@@ -127,6 +128,14 @@ class User extends Authenticatable implements MustVerifyEmail
     public function sponsor()
     {
         return $this->belongsTo(User::class, 'sponsor_id');
+    }
+
+    /**
+     * Get the user's pack de publication
+     */
+    public function pack_de_publication()
+    {
+        return $this->belongsTo(Pack::class, 'pack_de_publication_id');
     }
 
     /**

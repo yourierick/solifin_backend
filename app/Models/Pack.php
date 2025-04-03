@@ -10,6 +10,7 @@ class Pack extends Model
     use HasFactory;
 
     protected $fillable = [
+        'categorie',
         'name',
         'description',
         'price',
@@ -17,11 +18,11 @@ class Pack extends Model
         'commission_rates',
         'status',
         'avantages',
-        'formations',
+        'duree_publication_en_jour',
+        //'formations',
     ];
 
     protected $casts = [
-        'commission_rates' => 'array',
         'price' => 'float',
         'status' => 'boolean',
         'avantages' => 'array',

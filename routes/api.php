@@ -166,6 +166,12 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::get('/packs/{pack}/commission-rates', [PackController::class, 'getCommissionRates']);
     Route::post('/packs/{pack}/commission-rate', [PackController::class, 'updateCommissionRate']);
 
+    // Routes de gestion des bonus sur délais
+    Route::get('/packs/{packId}/bonus-rates', [PackController::class, 'getBonusRates']);
+    Route::post('/packs/{packId}/bonus-rates', [PackController::class, 'storeBonusRate']);
+    Route::put('/bonus-rates/{id}', [PackController::class, 'updateBonusRate']);
+    Route::delete('/bonus-rates/{id}', [PackController::class, 'deleteBonusRate']);
+
     // Routes pour la gestion des wallets
     Route::get('/wallets/data', [WalletController::class, 'getWalletData']);
     Route::post('/admin/wallets/withdraw', [WalletController::class, 'withdraw']);

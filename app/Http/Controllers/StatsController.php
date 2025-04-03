@@ -183,8 +183,9 @@ class StatsController extends Controller
                 ->values()
                 ->toArray();
 
-            // Statistiques par pack
-            $packsPerformance = Pack::all()->map(function ($pack) use ($user) {
+            // Statistiques par pack - uniquement pour les packs que l'utilisateur possède
+            $userPacks = UserPack::where('user_id', $user->id)->pluck('pack_id')->toArray();
+            $packsPerformance = Pack::whereIn('id', $userPacks)->get()->map(function ($pack) use ($user) {
                 // Compter tous les filleuls de la 1ère à la 4ème génération
                 $totalReferrals = 0;
                 $currentGenReferrals = [[$user->id]];
@@ -234,7 +235,7 @@ class StatsController extends Controller
                     ->where('pack_id', $pack->id)
                     ->where('status', 'completed')
                     ->sum('amount');
-
+                
                 return [
                     'id' => $pack->id,
                     'name' => $pack->name,
@@ -247,7 +248,7 @@ class StatsController extends Controller
                         'month' => $currentMonth
                     ]
                 ];
-            });
+            })->filter()->values();
 
             // Distribution des filleuls par pack
             $referralsByPack = Pack::all()->map(function ($pack) use ($allReferrals) {

@@ -22,6 +22,7 @@ class UpdateProfileRequest extends FormRequest
                 Rule::unique('users')->ignore($this->user()->id),
             ],
             'phone' => ['sometimes', 'string', 'max:20'],
+            'whatsapp' => ['sometimes', 'string', 'max:20'],
             'address' => ['sometimes', 'string', 'max:255'],
             'sexe' => ['sometimes', 'string'],
             'pays' => ['sometimes', 'string'],

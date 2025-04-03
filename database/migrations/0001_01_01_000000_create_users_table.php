@@ -15,9 +15,11 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->enum('sexe', ['homme', 'femme']);
+            $table->string('account_id')->unique()->nullable();
             $table->string('email')->unique();
             $table->string('password');
             $table->string('phone')->nullable();
+            $table->string('whatsapp')->nullable();
             $table->string('pays')->nullable();
             $table->string('province')->nullable();
             $table->string('ville')->nullable();

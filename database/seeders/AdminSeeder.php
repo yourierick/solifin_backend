@@ -16,13 +16,19 @@ class AdminSeeder extends Seeder
     {
         // Créer l'administrateur
         $admin = User::create([
-            'name' => 'Administrateur',
+            'name' => 'Mukuta Bitangalo Erick',
+            'account_id' => '00-CPT-01',
+            'sexe' => 'homme',
+            'pays' => 'CD',
+            'province' => 'SudKivu',
+            'ville' => 'Bukavu',
+            'address' => '1 Rue de la Paix, 75001 Bukavu',
+            'status' => 'active',
             'email' => 'admin@solifin.com',
-            'password' => Hash::make('password'),
+            'password' => Hash::make('admin123'),
             'is_admin' => true,
             'email_verified_at' => now(),
-            'phone' => '+33123456789',
-            'address' => '1 Rue de la Paix, 75001 Paris',
+            'phone' => '+243813728334',
         ]);
 
         // Créer le wallet pour l'administrateur

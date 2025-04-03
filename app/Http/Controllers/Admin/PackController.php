@@ -7,6 +7,7 @@ use App\Models\Pack;
 use App\Models\User;
 use App\Models\CommissionRate;
 use App\Models\UserPack;
+use App\Models\BonusRates;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -41,29 +42,33 @@ class PackController extends Controller
         try {
 
             $validated = $request->validate([
+                'categorie' => ['required'],
                 'name' => ['required', 'max:255', 'string', Rule::unique('packs')],
                 'description' => 'required|string',
                 'price' => 'required|numeric|min:0',
                 'status' => 'required|boolean',
                 'avantages' => 'required|json',
-                'formations' => 'required|file|mimes:zip,rar,7z|max:102400',
+                'duree_publication_en_jour' => 'required|numeric|min:1',
+                //'formations' => 'required|file|mimes:zip,rar,7z|max:102400',
             ]);
 
 
             // Gérer le fichier de formations
-            if ($request->hasFile('formations')) {
-                $formationsPath = $request->file('formations')->store('formations', 'public');
-                $validated['formations'] = $formationsPath;
-            }
+            // if ($request->hasFile('formations')) {
+            //     $formationsPath = $request->file('formations')->store('formations', 'public');
+            //     $validated['formations'] = $formationsPath;
+            // }
 
             // Créer le pack
             $pack = Pack::create([
+                'categorie' => $validated['categorie'],
                 'name' => $validated['name'],
                 'description' => $validated['description'],
                 'price' => $validated['price'],
                 'status' => $request->boolean('status'),
                 'avantages' => json_decode($request->avantages, true),
-                'formations' => $validated['formations'] ?? null,
+                'duree_publication_en_jour' => $validated['duree_publication_en_jour'],
+                //'formations' => $validated['formations'] ?? null,
             ]);
 
             //Attribuer automatiquement le pack aux administrateurs
@@ -181,6 +186,8 @@ class PackController extends Controller
     public function update(Request $request, Pack $pack)
     {
         $validator = Validator::make($request->all(), [
+            'categorie' => 'required',
+            'duree_publication_en_jour' => 'required|numeric|min:1',
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'price' => 'required|numeric|min:0',
@@ -200,18 +207,20 @@ class PackController extends Controller
             DB::beginTransaction();
 
             // Gérer le fichier des formations s'il est présent
-            if ($request->hasFile('formations')) {
-                // Supprimer l'ancien fichier s'il existe
-                if ($pack->formations && Storage::exists($pack->formations)) {
-                    Storage::delete($pack->formations);
-                }
+            // if ($request->hasFile('formations')) {
+            //     // Supprimer l'ancien fichier s'il existe
+            //     if ($pack->formations && Storage::exists($pack->formations)) {
+            //         Storage::delete($pack->formations);
+            //     }
 
-                $file = $request->file('formations');
-                $path = $file->store('formations');
-                $pack->formations = $path;
-            }
+            //     $file = $request->file('formations');
+            //     $path = $file->store('formations');
+            //     $pack->formations = $path;
+            // }
 
             $pack->update([
+                'categorie' => $request->categorie,
+                'duree_publication_en_jour' => $request->duree_publication_en_jour,
                 'name' => $request->name,
                 'description' => $request->description,
                 'price' => $request->price,
@@ -241,9 +250,9 @@ class PackController extends Controller
             DB::beginTransaction();
 
             // Supprimer le fichier des formations s'il existe
-            if ($pack->formations && Storage::exists($pack->formations)) {
-                Storage::delete($pack->formations);
-            }
+            // if ($pack->formations && Storage::exists($pack->formations)) {
+            //     Storage::delete($pack->formations);
+            // }
 
             $pack->delete();
 
@@ -317,5 +326,73 @@ class PackController extends Controller
         }
 
         return response()->json(['rates' => $rates]);
+    }
+
+    public function getBonusRates($packId)
+    {
+        $bonusRates = BonusRates::where('pack_id', $packId)->get();
+        
+        return response()->json([
+            'success' => true,
+            'bonusRates' => $bonusRates
+        ]);
+    }
+
+    public function storeBonusRate(Request $request, $packId)
+    {
+        $request->validate([
+            'frequence' => 'required|in:daily,weekly,monthly,yearly',
+            'nombre_filleuls' => 'required|integer|min:1',
+            'taux_bonus' => 'required|numeric|min:0|max:100'
+        ]);
+
+        $pack = Pack::findOrFail($packId);
+        
+        $bonusRate = BonusRates::create([
+            'pack_id' => $packId,
+            'frequence' => $request->frequence,
+            'nombre_filleuls' => $request->nombre_filleuls,
+            'taux_bonus' => $request->taux_bonus
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Taux de bonus ajouté avec succès',
+            'bonusRate' => $bonusRate
+        ]);
+    }
+
+    public function updateBonusRate(Request $request, $id)
+    {
+        $request->validate([
+            'frequence' => 'required|in:daily,weekly,monthly,yearly',
+            'nombre_filleuls' => 'required|integer|min:1',
+            'taux_bonus' => 'required|numeric|min:0|max:100'
+        ]);
+
+        $bonusRate = BonusRates::findOrFail($id);
+        
+        $bonusRate->update([
+            'frequence' => $request->frequence,
+            'nombre_filleuls' => $request->nombre_filleuls,
+            'taux_bonus' => $request->taux_bonus
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Taux de bonus mis à jour avec succès',
+            'bonusRate' => $bonusRate
+        ]);
+    }
+
+    public function deleteBonusRate($id)
+    {
+        $bonusRate = BonusRates::findOrFail($id);
+        $bonusRate->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Taux de bonus supprimé avec succès'
+        ]);
     }
 }

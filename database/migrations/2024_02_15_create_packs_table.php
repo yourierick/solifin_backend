@@ -10,12 +10,14 @@ return new class extends Migration
     {
         Schema::create('packs', function (Blueprint $table) {
             $table->id();
+            $table->enum('categorie', ['packs à 1 étoile', 'packs à 2 étoiles', 'packs à 3 étoiles/VIP']);
             $table->string('name');
             $table->text('description');
             $table->decimal('price', 10, 2);
             $table->boolean('status')->default(true);
             $table->json('avantages');
-            $table->string('formations')->nullable();
+            $table->integer('duree_publication_en_jour');
+            //$table->string('formations')->nullable();
             $table->timestamps();
         });
 

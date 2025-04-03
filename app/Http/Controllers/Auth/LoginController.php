@@ -13,26 +13,48 @@ class LoginController extends Controller
 {
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'email' => 'required|email',
+        $request->validate([
+            'login' => 'required|string',
             'password' => 'required'
         ]);
 
-        if (Auth::attempt($credentials, true)) {
-            if (!$request->session()->has('_token')) {
-                $request->session()->regenerate();
-            }
-            
-            $user = Auth::user();
-            $user->picture = $user->getProfilePictureUrlAttribute();
-            
+        // Déterminer si l'identifiant est un email ou un account_id
+        $loginField = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'account_id';
+        
+        // Rechercher l'utilisateur
+        $user = User::where($loginField, $request->login)->first();
+        
+        // Vérifier si l'utilisateur existe et si le mot de passe est correct
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            // throw ValidationException::withMessages([
+            //     'login' => ['Les identifiants fournis sont incorrects.'],
+            // ]);
             return response()->json([
-                'user' => $user
+                'message' => 'Les identifiants fournis sont incorrects.'
             ]);
         }
-
-        throw ValidationException::withMessages([
-            'email' => ['Les identifiants fournis sont incorrects.'],
+        
+        // Vérifier si le compte est actif
+        if ($user->status !== 'active') {
+            // throw ValidationException::withMessages([
+            //     'login' => ['Ce compte a été désactivé, veuillez contacter l\'administrateur pour sa réactivation.'],
+            // ]);
+            return response()->json([
+                'message' => 'Ce compte a été désactivé, veuillez contacter l\'administrateur pour sa réactivation.'
+            ]);
+        }
+        
+        // Authentifier l'utilisateur manuellement
+        Auth::login($user, true);
+        
+        if (!$request->session()->has('_token')) {
+            $request->session()->regenerate();
+        }
+        
+        $user->picture = $user->getProfilePictureUrlAttribute();
+        
+        return response()->json([
+            'user' => $user
         ]);
     }
 

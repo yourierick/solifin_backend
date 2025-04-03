@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use App\Services\CommissionService;
+use App\Notifications\VerifyEmailWithCredentials;
 
 class RegisterController extends Controller
 {
@@ -47,11 +48,15 @@ class RegisterController extends Controller
             $walletsystem->addFunds($total_paid, "sales", "completed", ["user"=>$validated["name"], "pack_id"=>$pack->id, "pack_name"=>$pack->name, 
             "sponsor_code"=>$validated['sponsor_code'], "duration"=>$validated['duration_months']]);
 
+            // Stocker le mot de passe en clair temporairement pour l'email
+            $plainPassword = $validated['password'];
+            
             // Créer l'utilisateur
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
-                'password' => Hash::make($validated['password']),
+                'password' => Hash::make($plainPassword),
+                'whatsapp' => $request->get('whatsapp'),
                 'phone' => $validated['phone'],
                 'sexe' => $validated['gender'],
                 'pays' => $validated['country'],
@@ -61,8 +66,9 @@ class RegisterController extends Controller
                 'status' => 'active',
             ]);
 
-            // Envoyer l'email de vérification
-            //$user->sendEmailVerificationNotification();
+            $account_id = "00-CPT-".$user->id;
+            $user->account_id = $account_id;
+            $user->update();
 
             // Traiter le code de parrainage
             $sponsorCode = $validated['sponsor_code'];
@@ -114,8 +120,11 @@ class RegisterController extends Controller
 
             // Distribuer les commissions
             $this->processCommissions($user_pack, $validated['duration_months']);
-
+            
             DB::commit();
+
+            // Envoyer l'email de vérification avec les informations supplémentaires
+            $user->notify(new VerifyEmailWithCredentials($pack_id, $validated['duration_months'], $plainPassword, $referralCode, $referralLink));
 
             return response()->json([
                 'success' => true,
