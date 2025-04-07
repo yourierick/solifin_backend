@@ -103,14 +103,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/stats/global', [StatsController::class, 'getGlobalStats']);
 
-    // Routes pour les demandes de retrait
-    Route::post('/withdrawal/send-otp', [WithdrawalController::class, 'sendOtp']);
-    Route::post('/withdrawal/request', [WithdrawalController::class, 'request']);
-    Route::post('/withdrawal/request/{id}/cancel', [WithdrawalController::class, 'cancel']);
-});
-
-// Routes protégées par l'authentification
-Route::middleware('auth:sanctum')->group(function () {
     // Routes pour les packs utilisateur
     Route::get('/user/packs', [\App\Http\Controllers\User\PackController::class, 'getUserPacks']);
     Route::post('/packs/{pack}/renew', [\App\Http\Controllers\User\PackController::class, 'renewPack']);
@@ -118,6 +110,52 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/packs/{pack}/referrals', [\App\Http\Controllers\User\PackController::class, 'getPackReferrals']);
     Route::get('/packs/{pack}/detailed-stats', [\App\Http\Controllers\User\PackController::class, 'getDetailedPackStats']);
     Route::post('/packs/purchase_a_new_pack', [\App\Http\Controllers\User\PackController::class, 'purchase_a_new_pack']);
+
+    // Routes pour les demandes de retrait
+    Route::post('/withdrawal/send-otp', [WithdrawalController::class, 'sendOtp']);
+    Route::post('/withdrawal/request', [WithdrawalController::class, 'request']);
+    Route::post('/withdrawal/request/{id}/cancel', [WithdrawalController::class, 'cancel']);
+
+    // Routes pour la gestion des pages et publications
+    Route::get('/my-page', [App\Http\Controllers\PageController::class, 'getMyPage']);
+    //Route::get('/pages/{id}', [App\Http\Controllers\PageController::class, 'getPage']);
+    Route::post('/pages/{pageId}/subscribe', [App\Http\Controllers\PageController::class, 'subscribe']);
+    Route::post('/pages/{pageId}/unsubscribe', [App\Http\Controllers\PageController::class, 'unsubscribe']);
+    Route::post('/pages/{pageId}/like', [App\Http\Controllers\PageController::class, 'likePage']);
+    //Route::get('/pages/{pageId}/stats', [App\Http\Controllers\PageController::class, 'getPageStats']);
+    
+    // Routes pour les publicités
+    Route::get('/publicites', [App\Http\Controllers\PubliciteController::class, 'index']);
+    Route::post('/publicites', [App\Http\Controllers\PubliciteController::class, 'store']);
+    Route::get('/publicites/{id}', [App\Http\Controllers\PubliciteController::class, 'show']);
+    Route::put('/publicites/{id}', [App\Http\Controllers\PubliciteController::class, 'update']);
+    Route::delete('/publicites/{id}', [App\Http\Controllers\PubliciteController::class, 'destroy']);
+    Route::put('/ad/{id}/etat', [App\Http\Controllers\PubliciteController::class, 'changeEtat']);
+    Route::put('/publicites/{id}/statut', [App\Http\Controllers\PubliciteController::class, 'changeStatut']);
+    Route::get('/admin/publicites/pending', [App\Http\Controllers\PubliciteController::class, 'getPendingAds']);
+    
+    // Routes pour les offres d'emploi
+    Route::get('/offres-emploi', [App\Http\Controllers\OffreEmploiController::class, 'index']);
+    Route::post('/offres-emploi', [App\Http\Controllers\OffreEmploiController::class, 'store']);
+    Route::get('/offres-emploi/{id}', [App\Http\Controllers\OffreEmploiController::class, 'show']);
+    Route::put('/offres-emploi/{id}', [App\Http\Controllers\OffreEmploiController::class, 'update']);
+    Route::delete('/offres-emploi/{id}', [App\Http\Controllers\OffreEmploiController::class, 'destroy']);
+    Route::put('/offres-emploi/{id}/etat', [App\Http\Controllers\OffreEmploiController::class, 'changeEtat']);
+    Route::put('/offres-emploi/{id}/statut', [App\Http\Controllers\OffreEmploiController::class, 'changeStatut']);
+    Route::get('/admin/offres-emploi/pending', [App\Http\Controllers\OffreEmploiController::class, 'getPendingJobs']);
+    
+    // Routes pour les opportunités d'affaires
+    Route::get('/opportunites-affaires', [App\Http\Controllers\OpportuniteAffaireController::class, 'index']);
+    Route::post('/opportunites-affaires', [App\Http\Controllers\OpportuniteAffaireController::class, 'store']);
+    Route::get('/opportunites-affaires/{id}', [App\Http\Controllers\OpportuniteAffaireController::class, 'show']);
+    Route::put('/opportunites-affaires/{id}', [App\Http\Controllers\OpportuniteAffaireController::class, 'update']);
+    Route::delete('/opportunites-affaires/{id}', [App\Http\Controllers\OpportuniteAffaireController::class, 'destroy']);
+    Route::put('/opportunites-affaires/{id}/etat', [App\Http\Controllers\OpportuniteAffaireController::class, 'changeEtat']);
+    Route::put('/opportunites-affaires/{id}/statut', [App\Http\Controllers\OpportuniteAffaireController::class, 'changeStatut']);
+    Route::get('/admin/opportunites-affaires/pending', [App\Http\Controllers\OpportuniteAffaireController::class, 'getPendingOpportunities']);
+
+    // Route pour vérifier le statut du pack de publication
+    Route::get('/user-pack/status', [App\Http\Controllers\UserPackController::class, 'checkPackStatus']);
 });
 
 // Routes admin
@@ -175,4 +213,9 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // Routes pour la gestion des wallets
     Route::get('/wallets/data', [WalletController::class, 'getWalletData']);
     Route::post('/admin/wallets/withdraw', [WalletController::class, 'withdraw']);
+    
+    // Routes pour l'administration des publications
+    Route::get('/admin/publications/pending', [App\Http\Controllers\AdminPublicationController::class, 'getPendingPublications']);
+    Route::post('/admin/publications/validate', [App\Http\Controllers\AdminPublicationController::class, 'validatePublication']);
+    Route::get('/admin/publications/stats', [App\Http\Controllers\AdminPublicationController::class, 'getPublicationStats']);
 });

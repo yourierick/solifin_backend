@@ -170,6 +170,14 @@ class User extends Authenticatable implements MustVerifyEmail
             $q->where('sponsor_id', $this->id);
         }])->get();
     }
+    
+    /**
+     * Récupérer la page de l'utilisateur
+     */
+    public function page()
+    {
+        return $this->hasOne(Page::class);
+    }
 
     /**
      * Compte le nombre de filleuls qui ont utilisé les codes parrain des packs de l'utilisateur

@@ -64,6 +64,7 @@ class RegisterController extends Controller
                 'ville' => $validated['city'],
                 'address' => $validated['address'],
                 'status' => 'active',
+                'pack_de_publication_id' => $pack->id,
             ]);
 
             $account_id = "00-CPT-".$user->id;

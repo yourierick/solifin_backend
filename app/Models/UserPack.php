@@ -20,6 +20,7 @@ class UserPack extends Model
         'referral_code',
         'link_referral',
         'payment_status',
+        'status',
         'purchase_date',
         'expiry_date'
     ];

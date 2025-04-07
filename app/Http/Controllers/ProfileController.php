@@ -13,10 +13,12 @@ class ProfileController extends Controller
     {
         $user = $request->user();
         $user->profile_picture_url = $user->getProfilePictureUrlAttribute();
+        $packs = $user->packs;
         
         return response()->json([
             'success' => true,
-            'data' => $user
+            'data' => $user,
+            'packs' => $packs
         ]);
     }
 
