@@ -75,7 +75,8 @@ return new class extends Migration
             $table->text('avantages')->nullable();
             $table->date('date_limite')->nullable();
             $table->string('email_contact');
-            $table->string('numero_contact')->nullable();
+            $table->string('contacts')->nullable();
+            $table->string('offer_file')->nullable();
             $table->string('lien')->nullable();
             $table->enum('statut', ['en_attente', 'approuvé', 'rejeté', 'expiré'])->default('en_attente');
             $table->enum('etat', ['disponible', 'terminé'])->default('disponible');

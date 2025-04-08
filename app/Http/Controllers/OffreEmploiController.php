@@ -167,12 +167,12 @@ class OffreEmploiController extends Controller
         $user = Auth::user();
         
         // Vérifier si l'utilisateur est autorisé
-        if (!$user->is_admin && $offre->page->user_id !== $user->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Vous n\'êtes pas autorisé à modifier cette offre d\'emploi.'
-            ], 403);
-        }
+        // if (!$user->is_admin && $offre->page->user_id !== $user->id) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'Vous n\'êtes pas autorisé à modifier cette offre d\'emploi.'
+        //     ], 403);
+        // }
 
         $validator = Validator::make($request->all(), [
             'titre' => 'nullable|string|max:255',
@@ -188,7 +188,7 @@ class OffreEmploiController extends Controller
             'avantages' => 'nullable|string',
             'date_limite' => 'nullable|date',
             'email_contact' => 'nullable|email',
-            'numero_contact' => 'nullable|string|max:255',
+            'contacts' => 'nullable|string|max:255',
             'lien' => 'nullable|url|max:255',
             'statut' => 'nullable|in:en_attente,approuvé,rejeté,expiré',
             'etat' => 'nullable|in:disponible,terminé',

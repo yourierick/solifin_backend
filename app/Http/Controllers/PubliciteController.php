@@ -82,7 +82,6 @@ class PubliciteController extends Controller
             }
         }
         
-        \Log::info($data);
         try {
             // Si l'image est un tableau vide, la supprimer des données
             if (isset($data['image']) && is_array($data['image']) && empty($data['image'])) {
@@ -115,7 +114,6 @@ class PubliciteController extends Controller
             ]);
     
             if ($validator->fails()) {
-                \Log::info($validator->errors());
                 return response()->json([
                     'success' => false,
                     'errors' => $validator->errors()
@@ -194,8 +192,6 @@ class PubliciteController extends Controller
                 'publicite' => $publicite
             ], 201);
         } catch (\Exception $e) {
-            \Log::error($e->getMessage());
-            \Log::info($request->all());
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
@@ -228,80 +224,116 @@ class PubliciteController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $publicite = Publicite::findOrFail($id);
-        $user = Auth::user();
+        $data = $request->all();
         
-        // Vérifier si l'utilisateur est autorisé
-        if (!$user->is_admin && $publicite->page->user_id !== $user->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Vous n\'êtes pas autorisé à modifier cette publicité.'
-            ], 403);
+        // Traitement du champ conditions_livraison
+        if (isset($data['conditions_livraison'])) {
+            if (is_string($data['conditions_livraison'])) {
+                if (empty($data['conditions_livraison']) || $data['conditions_livraison'] === '[]') {
+                    $data['conditions_livraison'] = [];
+                } else {
+                    try {
+                        $decoded = json_decode($data['conditions_livraison'], true);
+                        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                            $data['conditions_livraison'] = $decoded;
+                        } else {
+                            $data['conditions_livraison'] = [];
+                        }
+                    } catch (\Exception $e) {
+                        $data['conditions_livraison'] = [];
+                    }
+                }
+            } elseif (is_array($data['conditions_livraison'])) {
+                // Déjà un tableau, ne rien faire
+            } else {
+                // Si ce n'est ni une chaîne ni un tableau, initialiser comme tableau vide
+                $data['conditions_livraison'] = [];
+            }
+        } else {
+            // Si non défini, initialiser comme tableau vide
+            $data['conditions_livraison'] = [];
         }
+        
+        try {
+            $publicite = Publicite::findOrFail($id);
+            $user = Auth::user();
+            
+            // Vérifier si l'utilisateur est autorisé
+            // if (!$user->is_admin && $publicite->page->user_id !== $user->id) {
+            //     return response()->json([
+            //         'success' => false,
+            //         'message' => 'Vous n\'êtes pas autorisé à modifier cette publicité.'
+            //     ], 403);
+            // }
 
-        $validator = Validator::make($request->all(), [
-            'categorie' => 'nullable|in:produit,service',
-            'titre' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'image' => 'nullable|image|max:5120',
-            'video' => 'nullable|file|mimes:mp4,mov,avi|max:20480',
-            'contacts' => 'nullable|string',
-            'email' => 'nullable|email',
-            'adresse' => 'nullable|string',
-            'besoin_livreurs' => 'nullable|in:OUI,NON',
-            'conditions_livraison' => 'nullable|array',
-            'point_vente' => 'nullable|string',
-            'quantite_disponible' => 'nullable|integer',
-            'prix_unitaire_vente' => 'required|numeric',
-            'devise' => 'nullable|string|max:5',
-            'commission_livraison' => 'nullable|in:OUI,NON',
-            'prix_unitaire_livraison' => 'nullable|numeric',
-            'lien' => 'nullable|url',
-        ]);
-    
-        if ($validator->fails()) {
-            \Log::info($validator->errors());
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
-        }
+            $validator = Validator::make($request->all(), [
+                'categorie' => 'nullable|in:produit,service',
+                'titre' => 'nullable|string|max:255',
+                'description' => 'nullable|string',
+                'image' => 'nullable|image|max:5120',
+                'video' => 'nullable|file|mimes:mp4,mov,avi|max:20480',
+                'contacts' => 'nullable|string',
+                'email' => 'nullable|email',
+                'adresse' => 'nullable|string',
+                'besoin_livreurs' => 'nullable|in:OUI,NON',
+                'conditions_livraison' => 'nullable',
+                'point_vente' => 'nullable|string',
+                'quantite_disponible' => 'nullable|integer',
+                'prix_unitaire_vente' => 'required|numeric',
+                'devise' => 'nullable|string|max:5',
+                'commission_livraison' => 'nullable|in:OUI,NON',
+                'prix_unitaire_livraison' => 'nullable|numeric',
+                'lien' => 'nullable|url',
+            ]);
+        
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
 
-        $data = $request->except(['image', 'video']);
-        
-        // Si l'utilisateur n'est pas admin, la publicité revient en attente si certains champs sont modifiés
-        if (!$user->is_admin && $request->has(['titre', 'description', 'prix_unitaire_vente'])) {
-            $data['statut'] = 'en_attente';
-        }
-        
-        // Traitement des fichiers
-        if ($request->hasFile('image')) {
-            // Supprimer l'ancienne image si elle existe
-            if ($publicite->image) {
-                Storage::disk('public')->delete($publicite->image);
+            $data = $request->except(['image', 'video']);
+            
+            // Si l'utilisateur n'est pas admin, la publicité revient en attente si certains champs sont modifiés
+            if (!$user->is_admin && $request->has(['titre', 'description', 'prix_unitaire_vente'])) {
+                $data['statut'] = 'en_attente';
             }
             
-            $path = $request->file('image')->store('publicites/images', 'public');
-            $data['image'] = $path;
-        }
-        
-        if ($request->hasFile('video')) {
-            // Supprimer l'ancienne vidéo si elle existe
-            if ($publicite->video) {
-                Storage::disk('public')->delete($publicite->video);
+            // Traitement des fichiers
+            if ($request->hasFile('image')) {
+                // Supprimer l'ancienne image si elle existe
+                if ($publicite->image) {
+                    Storage::disk('public')->delete($publicite->image);
+                }
+                
+                $path = $request->file('image')->store('publicites/images', 'public');
+                $data['image'] = $path;
             }
             
-            $path = $request->file('video')->store('publicites/videos', 'public');
-            $data['video'] = $path;
+            if ($request->hasFile('video')) {
+                // Supprimer l'ancienne vidéo si elle existe
+                if ($publicite->video) {
+                    Storage::disk('public')->delete($publicite->video);
+                }
+                
+                $path = $request->file('video')->store('publicites/videos', 'public');
+                $data['video'] = $path;
+            }
+            
+            $publicite->update($data);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Publicité mise à jour avec succès.',
+                'publicite' => $publicite
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "une erreur s'est produite lors de la mise à jour des données"
+            ], 500);
         }
-        
-        $publicite->update($data);
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Publicité mise à jour avec succès.',
-            'publicite' => $publicite
-        ]);
     }
 
     /**

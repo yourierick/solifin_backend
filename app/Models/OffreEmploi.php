@@ -26,8 +26,9 @@ class OffreEmploi extends Model
         'avantages',
         'date_limite',
         'email_contact',
-        'numero_contact',
+        'contacts',
         'lien',
+        'offer_file',
         'statut',
         'etat',
     ];
