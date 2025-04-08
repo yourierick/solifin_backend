@@ -153,6 +153,16 @@ class OpportuniteAffaireController extends Controller
     {
         $opportunite = OpportuniteAffaire::with('page.user')->findOrFail($id);
         
+        // Ajouter l'URL complète de l'image si elle existe
+        if ($opportunite->image) {
+            $opportunite->image_url = asset('storage/' . $opportunite->image);
+        }
+        
+        // Ajouter l'URL complète de la vidéo si elle existe
+        if ($opportunite->video) {
+            $opportunite->video_url = asset('storage/' . $opportunite->video);
+        }
+        
         return response()->json([
             'success' => true,
             'opportunite' => $opportunite
@@ -220,6 +230,29 @@ class OpportuniteAffaireController extends Controller
             
             $path = $request->file('image')->store('opportunites/images', 'public');
             $data['image'] = $path;
+        } else if ($request->has('remove_image') && $request->input('remove_image') == '1') {
+            // Supprimer l'image sans la remplacer
+            if ($opportunite->image) {
+                Storage::disk('public')->delete($opportunite->image);
+                $data['image'] = null;
+            }
+        }
+        
+        // Traitement de la vidéo
+        if ($request->hasFile('video')) {
+            // Supprimer l'ancienne vidéo si elle existe
+            if ($opportunite->video) {
+                Storage::disk('public')->delete($opportunite->video);
+            }
+            
+            $path = $request->file('video')->store('opportunites/videos', 'public');
+            $data['video'] = $path;
+        } else if ($request->has('remove_video') && $request->input('remove_video') == '1') {
+            // Supprimer la vidéo sans la remplacer
+            if ($opportunite->video) {
+                Storage::disk('public')->delete($opportunite->video);
+                $data['video'] = null;
+            }
         }
         
         $opportunite->update($data);

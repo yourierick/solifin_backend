@@ -37,8 +37,15 @@ class PageController extends Controller
             'opportunitesAffaires',
             'user'
         ]);
-
-        \Log::info($page);
+        
+        // Ajouter l'URL complète du fichier PDF pour chaque offre d'emploi
+        if ($page->offresEmploi) {
+            foreach ($page->offresEmploi as $offre) {
+                if ($offre->offer_file) {
+                    $offre->offer_file_url = asset('storage/' . $offre->offer_file);
+                }
+            }
+        }
 
         return response()->json([
             'success' => true,

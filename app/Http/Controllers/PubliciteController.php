@@ -209,6 +209,16 @@ class PubliciteController extends Controller
     {
         $publicite = Publicite::with('page.user')->findOrFail($id);
         
+        // Ajouter l'URL complète de l'image si elle existe
+        if ($publicite->image) {
+            $publicite->image_url = asset('storage/' . $publicite->image);
+        }
+        
+        // Ajouter l'URL complète de la vidéo si elle existe
+        if ($publicite->video) {
+            $publicite->video_url = asset('storage/' . $publicite->video);
+        }
+        
         return response()->json([
             'success' => true,
             'publicite' => $publicite
@@ -285,8 +295,10 @@ class PubliciteController extends Controller
                 'prix_unitaire_livraison' => 'nullable|numeric',
                 'lien' => 'nullable|url',
             ]);
-        
+            
+            \Log::info($request->all());
             if ($validator->fails()) {
+                \Log::error($validator->errors());
                 return response()->json([
                     'success' => false,
                     'errors' => $validator->errors()
@@ -309,6 +321,12 @@ class PubliciteController extends Controller
                 
                 $path = $request->file('image')->store('publicites/images', 'public');
                 $data['image'] = $path;
+            } else if ($request->has('remove_image') && $request->remove_image == '1') {
+                // Supprimer l'image sans la remplacer
+                if ($publicite->image) {
+                    Storage::disk('public')->delete($publicite->image);
+                    $data['image'] = null;
+                }
             }
             
             if ($request->hasFile('video')) {
@@ -319,6 +337,12 @@ class PubliciteController extends Controller
                 
                 $path = $request->file('video')->store('publicites/videos', 'public');
                 $data['video'] = $path;
+            } else if ($request->has('remove_video') && $request->remove_video == '1') {
+                // Supprimer la vidéo sans la remplacer
+                if ($publicite->video) {
+                    Storage::disk('public')->delete($publicite->video);
+                    $data['video'] = null;
+                }
             }
             
             $publicite->update($data);

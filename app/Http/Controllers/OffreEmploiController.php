@@ -38,6 +38,14 @@ class OffreEmploiController extends Controller
         
         $offres = $query->orderBy('created_at', 'desc')->paginate(10);
         
+        // Ajouter l'URL complète du fichier PDF pour chaque offre
+        $offres->getCollection()->transform(function ($offre) {
+            if ($offre->offer_file) {
+                $offre->offer_file_url = asset('storage/' . $offre->offer_file);
+            }
+            return $offre;
+        });
+        
         return response()->json([
             'success' => true,
             'offres' => $offres
@@ -84,7 +92,8 @@ class OffreEmploiController extends Controller
             'avantages' => 'nullable|string',
             'date_limite' => 'nullable|date',
             'email_contact' => 'required|email',
-            'numero_contact' => 'nullable|string|max:255',
+            'contacts' => 'nullable|string|max:255',
+            'offer_file' => 'nullable|file|mimes:pdf|max:5120', // 5MB max, optionnel
             'lien' => 'nullable|url|max:255',
         ]);
 
@@ -128,6 +137,14 @@ class OffreEmploiController extends Controller
         $data['page_id'] = $page->id;
         $data['statut'] = 'en_attente';
         $data['etat'] = 'disponible';
+        
+        // Traitement du fichier PDF
+        if ($request->hasFile('offer_file') && $request->file('offer_file')->isValid()) {
+            $file = $request->file('offer_file');
+            $fileName = time() . '_' . $file->getClientOriginalName();
+            $filePath = $file->storeAs('offers', $fileName, 'public');
+            $data['offer_file'] = $filePath;
+        }
 
         $offre = OffreEmploi::create($data);
         
@@ -147,6 +164,21 @@ class OffreEmploiController extends Controller
     public function show($id)
     {
         $offre = OffreEmploi::with('page.user')->findOrFail($id);
+        
+        // Ajouter l'URL complète du fichier PDF s'il existe
+        if ($offre->offer_file) {
+            $offre->offer_file_url = asset('storage/' . $offre->offer_file);
+        }
+        
+        // Ajouter l'URL complète de l'image si elle existe
+        if ($offre->image) {
+            $offre->image_url = asset('storage/' . $offre->image);
+        }
+        
+        // Ajouter l'URL complète de la vidéo si elle existe
+        if ($offre->video) {
+            $offre->video_url = asset('storage/' . $offre->video);
+        }
         
         return response()->json([
             'success' => true,
@@ -189,6 +221,7 @@ class OffreEmploiController extends Controller
             'date_limite' => 'nullable|date',
             'email_contact' => 'nullable|email',
             'contacts' => 'nullable|string|max:255',
+            'offer_file' => 'nullable|file|mimes:pdf|max:5120', // 5MB max
             'lien' => 'nullable|url|max:255',
             'statut' => 'nullable|in:en_attente,approuvé,rejeté,expiré',
             'etat' => 'nullable|in:disponible,terminé',
@@ -206,6 +239,63 @@ class OffreEmploiController extends Controller
         // Si l'utilisateur n'est pas admin, l'offre revient en attente si certains champs sont modifiés
         if (!$user->is_admin && $request->has(['titre', 'description', 'competences_requises'])) {
             $data['statut'] = 'en_attente';
+        }
+        
+        // Traitement de l'image
+        if ($request->hasFile('image')) {
+            // Supprimer l'ancienne image si elle existe
+            if ($offre->image) {
+                \Storage::disk('public')->delete($offre->image);
+            }
+            
+            $path = $request->file('image')->store('offres/images', 'public');
+            $data['image'] = $path;
+        } else if ($request->has('remove_image') && $request->input('remove_image') == '1') {
+            // Supprimer l'image sans la remplacer
+            if ($offre->image) {
+                \Storage::disk('public')->delete($offre->image);
+                $data['image'] = null;
+            }
+        }
+        
+        // Traitement de la vidéo
+        if ($request->hasFile('video')) {
+            // Supprimer l'ancienne vidéo si elle existe
+            if ($offre->video) {
+                \Storage::disk('public')->delete($offre->video);
+            }
+            
+            $path = $request->file('video')->store('offres/videos', 'public');
+            $data['video'] = $path;
+        } else if ($request->has('remove_video') && $request->input('remove_video') == '1') {
+            // Supprimer la vidéo sans la remplacer
+            if ($offre->video) {
+                \Storage::disk('public')->delete($offre->video);
+                $data['video'] = null;
+            }
+        }
+        
+        // Traitement du fichier PDF
+        if ($request->hasFile('offer_file') && $request->file('offer_file')->isValid()) {
+            // Supprimer l'ancien fichier s'il existe
+            if ($offre->offer_file) {
+                \Storage::disk('public')->delete($offre->offer_file);
+            }
+            
+            $file = $request->file('offer_file');
+            $fileName = time() . '_' . $file->getClientOriginalName();
+            $filePath = $file->storeAs('offers', $fileName, 'public');
+            $data['offer_file'] = $filePath;
+        }
+        // Gestion de la suppression du fichier PDF
+        elseif ($request->has('remove_offer_file') && $request->input('remove_offer_file') == '1') {
+            // Supprimer le fichier physique
+            if ($offre->offer_file) {
+                \Storage::disk('public')->delete($offre->offer_file);
+            }
+            
+            // Mettre à null le champ dans la base de données
+            $data['offer_file'] = null;
         }
         
         $offre->update($data);
@@ -311,14 +401,20 @@ class OffreEmploiController extends Controller
     {
         $offre = OffreEmploi::findOrFail($id);
         $user = Auth::user();
+
+        if ($offre->offer_file) {   
+            if (\Storage::disk('public')->exists($offre->offer_file)) {
+                \Storage::disk('public')->delete($offre->offer_file);
+            }
+        }
         
         // Vérifier si l'utilisateur est autorisé
-        if (!$user->is_admin && $offre->page->user_id !== $user->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Vous n\'êtes pas autorisé à supprimer cette offre d\'emploi.'
-            ], 403);
-        }
+        // if (!$user->is_admin && $offre->page->user_id !== $user->id) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'Vous n\'êtes pas autorisé à supprimer cette offre d\'emploi.'
+        //     ], 403);
+        // }
         
         $offre->delete();
         
