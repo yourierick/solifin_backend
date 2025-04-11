@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\OffreEmploi;
+use App\Models\OffreEmploiLike;
+use App\Models\OffreEmploiComment;
+use App\Models\OffreEmploiShare;
 use App\Models\Page;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -421,6 +424,228 @@ class OffreEmploiController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Offre d\'emploi supprimée avec succès.'
+        ]);
+    }
+    
+    /**
+     * Liker une offre d'emploi
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function like($id)
+    {
+        $user = Auth::user();
+        $offre = OffreEmploi::findOrFail($id);
+        
+        // Vérifier si l'utilisateur a déjà liké cette offre
+        $existingLike = OffreEmploiLike::where('user_id', $user->id)
+            ->where('offre_emploi_id', $id)
+            ->first();
+            
+        if ($existingLike) {
+            // Si l'utilisateur a déjà liké, on supprime le like (unlike)
+            $existingLike->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Like retiré avec succès.',
+                'liked' => false,
+                'likes_count' => $offre->likes()->count()
+            ]);
+        }
+        
+        // Créer un nouveau like
+        OffreEmploiLike::create([
+            'user_id' => $user->id,
+            'offre_emploi_id' => $id
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Offre d\'emploi likée avec succès.',
+            'liked' => true,
+            'likes_count' => $offre->likes()->count()
+        ]);
+    }
+    
+    /**
+     * Vérifier si l'utilisateur a liké une offre d'emploi
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function checkLike($id)
+    {
+        $user = Auth::user();
+        $offre = OffreEmploi::findOrFail($id);
+        
+        $liked = OffreEmploiLike::where('user_id', $user->id)
+            ->where('offre_emploi_id', $id)
+            ->exists();
+            
+        return response()->json([
+            'success' => true,
+            'liked' => $liked,
+            'likes_count' => $offre->likes()->count()
+        ]);
+    }
+    
+    /**
+     * Commenter une offre d'emploi
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function comment(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'content' => 'required|string|max:1000',
+            'parent_id' => 'nullable|exists:offre_emploi_comments,id'
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+        
+        $user = Auth::user();
+        $offre = OffreEmploi::findOrFail($id);
+        
+        $comment = OffreEmploiComment::create([
+            'user_id' => $user->id,
+            'offre_emploi_id' => $id,
+            'content' => $request->content,
+            'parent_id' => $request->parent_id
+        ]);
+        
+        // Charger les relations pour la réponse
+        $comment->load('user');
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Commentaire ajouté avec succès.',
+            'comment' => $comment,
+            'comments_count' => $offre->comments()->count()
+        ]);
+    }
+    
+    /**
+     * Récupérer les commentaires d'une offre d'emploi
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function getComments($id)
+    {
+        $offre = OffreEmploi::findOrFail($id);
+        
+        // Récupérer uniquement les commentaires parents (pas les réponses)
+        $comments = OffreEmploiComment::with(['user', 'replies.user'])
+            ->where('offre_emploi_id', $id)
+            ->whereNull('parent_id')
+            ->orderBy('created_at', 'desc')
+            ->get();
+            
+        return response()->json([
+            'success' => true,
+            'comments' => $comments,
+            'comments_count' => $offre->comments()->count()
+        ]);
+    }
+    
+    /**
+     * Supprimer un commentaire
+     *
+     * @param  int  $commentId
+     * @return \Illuminate\Http\Response
+     */
+    public function deleteComment($commentId)
+    {
+        $user = Auth::user();
+        $comment = OffreEmploiComment::findOrFail($commentId);
+        
+        // Vérifier si l'utilisateur est autorisé à supprimer ce commentaire
+        if (!$user->is_admin && $comment->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous n\'êtes pas autorisé à supprimer ce commentaire.'
+            ], 403);
+        }
+        
+        $offreId = $comment->offre_emploi_id;
+        $offre = OffreEmploi::findOrFail($offreId);
+        
+        // Supprimer également toutes les réponses à ce commentaire
+        $comment->replies()->delete();
+        $comment->delete();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Commentaire supprimé avec succès.',
+            'comments_count' => $offre->comments()->count()
+        ]);
+    }
+    
+    /**
+     * Partager une offre d'emploi
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function share(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'comment' => 'nullable|string|max:500'
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+        
+        $user = Auth::user();
+        $offre = OffreEmploi::findOrFail($id);
+        
+        $share = OffreEmploiShare::create([
+            'user_id' => $user->id,
+            'offre_emploi_id' => $id,
+            'comment' => $request->comment
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Offre d\'emploi partagée avec succès.',
+            'share' => $share,
+            'shares_count' => $offre->shares()->count()
+        ]);
+    }
+    
+    /**
+     * Récupérer les partages d'une offre d'emploi
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function getShares($id)
+    {
+        $offre = OffreEmploi::findOrFail($id);
+        
+        $shares = OffreEmploiShare::with('user')
+            ->where('offre_emploi_id', $id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+            
+        return response()->json([
+            'success' => true,
+            'shares' => $shares,
+            'shares_count' => $shares->count()
         ]);
     }
 }

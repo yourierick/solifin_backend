@@ -24,6 +24,7 @@ class RegisterController extends Controller
     public function register(Request $request, $pack_id)
     {
         try {
+            \Log::info('Register request: ' . json_encode($request->all()));
             // Valider les données
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
@@ -31,13 +32,18 @@ class RegisterController extends Controller
                 'password' => 'required|string|min:8|confirmed',
                 'address' => 'required|string',
                 'phone' => 'required|string',
-                'sponsor_code' => 'nullable|exists:user_packs,referral_code',
+                'whatsapp' => 'nullable|string',
+                'sponsor_code' => 'required|exists:user_packs,referral_code',
                 'duration_months' => 'required|integer|min:1',
+                'payment_method' => 'required|string',
+                'payment_details' => 'required|array',
                 'gender' => 'required|string',
                 'country' => 'required|string',
                 'province' => 'required|string',
                 'city' => 'required|string',
             ]);
+
+            //Logique de paiement à implémenter
 
             DB::beginTransaction();
 
@@ -45,7 +51,7 @@ class RegisterController extends Controller
 
             $total_paid = $pack->price * $validated['duration_months'];
             $walletsystem = WalletSystem::first();
-            $walletsystem->addFunds($total_paid, "sales", "completed", ["user"=>$validated["name"], "pack_id"=>$pack->id, "pack_name"=>$pack->name, 
+            $walletsystem->addFunds($total_paid, "sales", "completed", ["user"=>$validated["name"], "pack_id"=>$pack->id, "payment_details"=>$validated['payment_details'], "pack_name"=>$pack->name, 
             "sponsor_code"=>$validated['sponsor_code'], "duration"=>$validated['duration_months']]);
 
             // Stocker le mot de passe en clair temporairement pour l'email
@@ -98,7 +104,6 @@ class RegisterController extends Controller
 
             // Créer le lien de parrainage en utilisant l'URL du frontend
             $referralLink = $frontendUrl . "/register?referral_code=" . $referralCode;
-            
 
             // Attacher le pack à l'utilisateur
             $user->packs()->attach($pack->id, [
@@ -134,6 +139,7 @@ class RegisterController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+            \Log::error('Erreur lors de l\'inscription: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'inscription'

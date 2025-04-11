@@ -3,6 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Publicite;
+use App\Models\PubliciteLike;
+use App\Models\PubliciteComment;
+use App\Models\PubliciteShare;
+use App\Models\PageAbonnes;
 use App\Models\Page;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -217,11 +221,11 @@ class PubliciteController extends Controller
         // Ajouter l'URL complète de la vidéo si elle existe
         if ($publicite->video) {
             $publicite->video_url = asset('storage/' . $publicite->video);
-        }
+        } 
         
         return response()->json([
             'success' => true,
-            'publicite' => $publicite
+            'publicite' => $publicite,
         ]);
     }
 
@@ -477,6 +481,295 @@ class PubliciteController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Publicité supprimée avec succès.'
+        ]);
+    }
+    
+    /**
+     * Liker une publicité
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function like($id)
+    {
+        $user = Auth::user();
+        $publicite = Publicite::findOrFail($id);
+        
+        // Vérifier si l'utilisateur a déjà liké cette publicité
+        $existingLike = PubliciteLike::where('user_id', $user->id)
+            ->where('publicite_id', $id)
+            ->first();
+            
+        if ($existingLike) {
+            // Si l'utilisateur a déjà liké, on supprime le like (unlike)
+            $existingLike->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Like retiré avec succès.',
+                'liked' => false,
+                'likes_count' => $publicite->likes()->count()
+            ]);
+        }
+        
+        // Créer un nouveau like
+        PubliciteLike::create([
+            'user_id' => $user->id,
+            'publicite_id' => $id
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Publicité likée avec succès.',
+            'liked' => true,
+            'likes_count' => $publicite->likes()->count()
+        ]);
+    }
+    
+    /**
+     * Vérifier si l'utilisateur a liké une publicité
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function checkLike($id)
+    {
+        $user = Auth::user();
+        $publicite = Publicite::findOrFail($id);
+        
+        $liked = PubliciteLike::where('user_id', $user->id)
+            ->where('publicite_id', $id)
+            ->exists();
+            
+        return response()->json([
+            'success' => true,
+            'liked' => $liked,
+            'likes_count' => $publicite->likes()->count()
+        ]);
+    }
+    
+    /**
+     * Commenter une publicité
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function comment(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'content' => 'required|string|max:1000',
+            'parent_id' => 'nullable|exists:publicite_comments,id'
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+        
+        $user = Auth::user();
+        $publicite = Publicite::findOrFail($id);
+        
+        $comment = PubliciteComment::create([
+            'user_id' => $user->id,
+            'publicite_id' => $id,
+            'content' => $request->content,
+            'parent_id' => $request->parent_id
+        ]);
+        
+        // Charger les relations pour la réponse
+        $comment->load('user');
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Commentaire ajouté avec succès.',
+            'comment' => $comment,
+            'comments_count' => $publicite->comments()->count()
+        ]);
+    }
+    
+    /**
+     * Récupérer les commentaires d'une publicité
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function getComments($id)
+    {
+        $publicite = Publicite::findOrFail($id);
+        
+        // Récupérer uniquement les commentaires parents (pas les réponses)
+        $comments = PubliciteComment::with(['user', 'replies.user'])
+            ->where('publicite_id', $id)
+            ->whereNull('parent_id')
+            ->orderBy('created_at', 'desc')
+            ->get();
+            
+        return response()->json([
+            'success' => true,
+            'comments' => $comments,
+            'comments_count' => $publicite->comments()->count()
+        ]);
+    }
+    
+    /**
+     * Supprimer un commentaire
+     *
+     * @param  int  $commentId
+     * @return \Illuminate\Http\Response
+     */
+    public function deleteComment($commentId)
+    {
+        $user = Auth::user();
+        $comment = PubliciteComment::findOrFail($commentId);
+        
+        // Vérifier si l'utilisateur est autorisé à supprimer ce commentaire
+        if (!$user->is_admin && $comment->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous n\'êtes pas autorisé à supprimer ce commentaire.'
+            ], 403);
+        }
+        
+        $publiciteId = $comment->publicite_id;
+        $publicite = Publicite::findOrFail($publiciteId);
+        
+        // Supprimer également toutes les réponses à ce commentaire
+        $comment->replies()->delete();
+        $comment->delete();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Commentaire supprimé avec succès.',
+            'comments_count' => $publicite->comments()->count()
+        ]);
+    }
+    
+    /**
+     * Partager une publicité
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function share(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'comment' => 'nullable|string|max:500'
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+        
+        $user = Auth::user();
+        $publicite = Publicite::findOrFail($id);
+        
+        $share = PubliciteShare::create([
+            'user_id' => $user->id,
+            'publicite_id' => $id,
+            'comment' => $request->comment
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Publicité partagée avec succès.',
+            'share' => $share,
+            'shares_count' => $publicite->shares()->count()
+        ]);
+    }
+    
+    /**
+     * Récupérer les partages d'une publicité
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function getShares($id)
+    {
+        $publicite = Publicite::findOrFail($id);
+        
+        $shares = PubliciteShare::with('user')
+            ->where('publicite_id', $id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+            
+        return response()->json([
+            'success' => true,
+            'shares' => $shares,
+            'shares_count' => $shares->count()
+        ]);
+    }
+
+    public function details($id)
+    {
+        $userId = Auth::id();
+        $post = Publicite::with(['page', 'page.user'])
+            ->findOrFail($id);
+
+        $post->user->picture = asset('storage/' . $post->user->picture);
+
+        // Vérifier si l'utilisateur est abonné à cette page
+        $post->is_subscribed = PageAbonnes::where('user_id', $userId)
+        ->where('page_id', $post->page_id)
+        ->exists();
+
+        // Compter les likes pour cette publication
+        $post->likes_count = PubliciteLike::where('publicite_id', $post->id)->count();
+
+        $post->type = "publicites";
+                    
+        // Vérifier si l'utilisateur a aimé cette publication
+        $post->is_liked = PubliciteLike::where('publicite_id', $post->id)
+            ->where('user_id', $userId)
+            ->exists();
+
+        // Ajouter l'URL complète de l'image si elle existe
+        if ($post->image) {
+            $post->image_url = asset('storage/' . $post->image);
+        }
+        
+        // Ajouter l'URL complète de la vidéo si elle existe
+        if ($post->video) {
+            $post->video_url = asset('storage/' . $post->video);
+        }
+        
+        // Compter les commentaires pour cette publication
+        $post->comments_count = PubliciteComment::where('publicite_id', $post->id)->count();
+        
+        // Récupérer les 3 derniers commentaires
+        $post->comments = PubliciteComment::where('publicite_id', $post->id)
+            ->with('user')
+            ->orderBy('created_at', 'desc')
+            ->take(3)
+            ->get()
+            ->map(function($comment) use ($userId) {
+                return [
+                    'id' => $comment->id,
+                    'content' => $comment->content,
+                    'created_at' => $comment->created_at,
+                    'created_at_formatted' => $comment->created_at->diffForHumans(),
+                    'user' => [
+                        'id' => $comment->user->id,
+                        'name' => $comment->user->name,
+                        'picture' => $comment->user->picture ? asset('storage/' . $comment->user->picture) : null
+                    ],
+                    'likes_count' => 0, // À implémenter si les commentaires ont des likes
+                    'is_liked' => false // À implémenter si les commentaires ont des likes
+                ];
+            });
+        
+        // Compter les partages pour cette publication
+        $post->shares_count = PubliciteShare::where('publicite_id', $post->id)->count();
+        
+        return response()->json([
+            'success' => true,
+            'post' => $post
         ]);
     }
 }

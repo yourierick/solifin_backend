@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\OpportuniteAffaire;
+use App\Models\OpportuniteAffaireLike;
+use App\Models\OpportuniteAffaireComment;
+use App\Models\OpportuniteAffaireShare;
 use App\Models\Page;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -377,6 +380,228 @@ class OpportuniteAffaireController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Opportunité d\'affaire supprimée avec succès.'
+        ]);
+    }
+    
+    /**
+     * Liker une opportunité d'affaire
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function like($id)
+    {
+        $user = Auth::user();
+        $opportunite = OpportuniteAffaire::findOrFail($id);
+        
+        // Vérifier si l'utilisateur a déjà liké cette opportunité
+        $existingLike = OpportuniteAffaireLike::where('user_id', $user->id)
+            ->where('opportunite_affaire_id', $id)
+            ->first();
+            
+        if ($existingLike) {
+            // Si l'utilisateur a déjà liké, on supprime le like (unlike)
+            $existingLike->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Like retiré avec succès.',
+                'liked' => false,
+                'likes_count' => $opportunite->likes()->count()
+            ]);
+        }
+        
+        // Créer un nouveau like
+        OpportuniteAffaireLike::create([
+            'user_id' => $user->id,
+            'opportunite_affaire_id' => $id
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Opportunité d\'affaire likée avec succès.',
+            'liked' => true,
+            'likes_count' => $opportunite->likes()->count()
+        ]);
+    }
+    
+    /**
+     * Vérifier si l'utilisateur a liké une opportunité d'affaire
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function checkLike($id)
+    {
+        $user = Auth::user();
+        $opportunite = OpportuniteAffaire::findOrFail($id);
+        
+        $liked = OpportuniteAffaireLike::where('user_id', $user->id)
+            ->where('opportunite_affaire_id', $id)
+            ->exists();
+            
+        return response()->json([
+            'success' => true,
+            'liked' => $liked,
+            'likes_count' => $opportunite->likes()->count()
+        ]);
+    }
+    
+    /**
+     * Commenter une opportunité d'affaire
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function comment(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'content' => 'required|string|max:1000',
+            'parent_id' => 'nullable|exists:opportunite_affaire_comments,id'
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+        
+        $user = Auth::user();
+        $opportunite = OpportuniteAffaire::findOrFail($id);
+        
+        $comment = OpportuniteAffaireComment::create([
+            'user_id' => $user->id,
+            'opportunite_affaire_id' => $id,
+            'content' => $request->content,
+            'parent_id' => $request->parent_id
+        ]);
+        
+        // Charger les relations pour la réponse
+        $comment->load('user');
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Commentaire ajouté avec succès.',
+            'comment' => $comment,
+            'comments_count' => $opportunite->comments()->count()
+        ]);
+    }
+    
+    /**
+     * Récupérer les commentaires d'une opportunité d'affaire
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function getComments($id)
+    {
+        $opportunite = OpportuniteAffaire::findOrFail($id);
+        
+        // Récupérer uniquement les commentaires parents (pas les réponses)
+        $comments = OpportuniteAffaireComment::with(['user', 'replies.user'])
+            ->where('opportunite_affaire_id', $id)
+            ->whereNull('parent_id')
+            ->orderBy('created_at', 'desc')
+            ->get();
+            
+        return response()->json([
+            'success' => true,
+            'comments' => $comments,
+            'comments_count' => $opportunite->comments()->count()
+        ]);
+    }
+    
+    /**
+     * Supprimer un commentaire
+     *
+     * @param  int  $commentId
+     * @return \Illuminate\Http\Response
+     */
+    public function deleteComment($commentId)
+    {
+        $user = Auth::user();
+        $comment = OpportuniteAffaireComment::findOrFail($commentId);
+        
+        // Vérifier si l'utilisateur est autorisé à supprimer ce commentaire
+        if (!$user->is_admin && $comment->user_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous n\'êtes pas autorisé à supprimer ce commentaire.'
+            ], 403);
+        }
+        
+        $opportuniteId = $comment->opportunite_affaire_id;
+        $opportunite = OpportuniteAffaire::findOrFail($opportuniteId);
+        
+        // Supprimer également toutes les réponses à ce commentaire
+        $comment->replies()->delete();
+        $comment->delete();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Commentaire supprimé avec succès.',
+            'comments_count' => $opportunite->comments()->count()
+        ]);
+    }
+    
+    /**
+     * Partager une opportunité d'affaire
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function share(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'comment' => 'nullable|string|max:500'
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+        
+        $user = Auth::user();
+        $opportunite = OpportuniteAffaire::findOrFail($id);
+        
+        $share = OpportuniteAffaireShare::create([
+            'user_id' => $user->id,
+            'opportunite_affaire_id' => $id,
+            'comment' => $request->comment
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Opportunité d\'affaire partagée avec succès.',
+            'share' => $share,
+            'shares_count' => $opportunite->shares()->count()
+        ]);
+    }
+    
+    /**
+     * Récupérer les partages d'une opportunité d'affaire
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function getShares($id)
+    {
+        $opportunite = OpportuniteAffaire::findOrFail($id);
+        
+        $shares = OpportuniteAffaireShare::with('user')
+            ->where('opportunite_affaire_id', $id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+            
+        return response()->json([
+            'success' => true,
+            'shares' => $shares,
+            'shares_count' => $shares->count()
         ]);
     }
 }

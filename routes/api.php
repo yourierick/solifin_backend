@@ -128,11 +128,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/publicites', [App\Http\Controllers\PubliciteController::class, 'index']);
     Route::post('/publicites', [App\Http\Controllers\PubliciteController::class, 'store']);
     Route::get('/publicites/{id}', [App\Http\Controllers\PubliciteController::class, 'show']);
+    Route::get('/publicites/{id}/details', [App\Http\Controllers\PubliciteController::class, 'details']);
     Route::put('/publicites/{id}', [App\Http\Controllers\PubliciteController::class, 'update']);
     Route::delete('/publicites/{id}', [App\Http\Controllers\PubliciteController::class, 'destroy']);
     Route::put('/ad/{id}/etat', [App\Http\Controllers\PubliciteController::class, 'changeEtat']);
     Route::put('/publicites/{id}/statut', [App\Http\Controllers\PubliciteController::class, 'changeStatut']);
     Route::get('/admin/publicites/pending', [App\Http\Controllers\PubliciteController::class, 'getPendingAds']);
+    
+    // Routes pour les interactions avec les publicités
+    Route::post('/publicites/{id}/like', [App\Http\Controllers\PubliciteController::class, 'like']);
+    Route::get('/publicites/{id}/check-like', [App\Http\Controllers\PubliciteController::class, 'checkLike']);
+    Route::post('/publicites/{id}/comment', [App\Http\Controllers\PubliciteController::class, 'comment']);
+    Route::get('/publicites/{id}/comments', [App\Http\Controllers\PubliciteController::class, 'getComments']);
+    Route::delete('/publicites/comments/{commentId}', [App\Http\Controllers\PubliciteController::class, 'deleteComment']);
+    Route::post('/publicites/{id}/share', [App\Http\Controllers\PubliciteController::class, 'share']);
+    Route::get('/publicites/{id}/shares', [App\Http\Controllers\PubliciteController::class, 'getShares']);
     
     // Routes pour les offres d'emploi
     Route::get('/offres-emploi', [App\Http\Controllers\OffreEmploiController::class, 'index']);
@@ -144,6 +154,26 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/offres-emploi/{id}/statut', [App\Http\Controllers\OffreEmploiController::class, 'changeStatut']);
     Route::get('/admin/offres-emploi/pending', [App\Http\Controllers\OffreEmploiController::class, 'getPendingJobs']);
     
+    // Routes pour les interactions avec les offres d'emploi
+    Route::post('/offres-emploi/{id}/like', [App\Http\Controllers\OffreEmploiController::class, 'like']);
+    Route::get('/offres-emploi/{id}/check-like', [App\Http\Controllers\OffreEmploiController::class, 'checkLike']);
+    Route::post('/offres-emploi/{id}/comment', [App\Http\Controllers\OffreEmploiController::class, 'comment']);
+    Route::get('/offres-emploi/{id}/comments', [App\Http\Controllers\OffreEmploiController::class, 'getComments']);
+    Route::delete('/offres-emploi/comments/{commentId}', [App\Http\Controllers\OffreEmploiController::class, 'deleteComment']);
+    Route::post('/offres-emploi/{id}/share', [App\Http\Controllers\OffreEmploiController::class, 'share']);
+    Route::get('/offres-emploi/{id}/shares', [App\Http\Controllers\OffreEmploiController::class, 'getShares']);
+    
+    // Routes pour le fil d'actualités
+    // Routes pour le fil d'actualité
+    Route::get('/feed', [App\Http\Controllers\FeedController::class, 'index']);
+    //Route::get('/posts/{id}', [App\Http\Controllers\FeedController::class, 'show']);
+    
+    // Routes pour la gestion des abonnements aux pages
+    Route::get('/pages/subscribed', [App\Http\Controllers\FeedController::class, 'subscribedPages']);
+    Route::get('/pages/recommended', [App\Http\Controllers\FeedController::class, 'recommendedPages']);
+    Route::post('/pages/{id}/subscribe', [App\Http\Controllers\FeedController::class, 'subscribe']);
+    Route::delete('/pages/{id}/unsubscribe', [App\Http\Controllers\FeedController::class, 'unsubscribe']);
+    
     // Routes pour les opportunités d'affaires
     Route::get('/opportunites-affaires', [App\Http\Controllers\OpportuniteAffaireController::class, 'index']);
     Route::post('/opportunites-affaires', [App\Http\Controllers\OpportuniteAffaireController::class, 'store']);
@@ -153,6 +183,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/opportunites-affaires/{id}/etat', [App\Http\Controllers\OpportuniteAffaireController::class, 'changeEtat']);
     Route::put('/opportunites-affaires/{id}/statut', [App\Http\Controllers\OpportuniteAffaireController::class, 'changeStatut']);
     Route::get('/admin/opportunites-affaires/pending', [App\Http\Controllers\OpportuniteAffaireController::class, 'getPendingOpportunities']);
+    
+    // Routes pour les interactions avec les opportunités d'affaires
+    Route::post('/opportunites-affaires/{id}/like', [App\Http\Controllers\OpportuniteAffaireController::class, 'like']);
+    Route::get('/opportunites-affaires/{id}/check-like', [App\Http\Controllers\OpportuniteAffaireController::class, 'checkLike']);
+    Route::post('/opportunites-affaires/{id}/comment', [App\Http\Controllers\OpportuniteAffaireController::class, 'comment']);
+    Route::get('/opportunites-affaires/{id}/comments', [App\Http\Controllers\OpportuniteAffaireController::class, 'getComments']);
+    Route::delete('/opportunites-affaires/comments/{commentId}', [App\Http\Controllers\OpportuniteAffaireController::class, 'deleteComment']);
+    Route::post('/opportunites-affaires/{id}/share', [App\Http\Controllers\OpportuniteAffaireController::class, 'share']);
+    Route::get('/opportunites-affaires/{id}/shares', [App\Http\Controllers\OpportuniteAffaireController::class, 'getShares']);
 
     // Route pour vérifier le statut du pack de publication
     Route::get('/user-pack/status', [App\Http\Controllers\UserPackController::class, 'checkPackStatus']);
@@ -160,6 +199,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Routes admin
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+    // Gestion des publications
+    Route::get('/posts', [App\Http\Controllers\AdminPostController::class, 'index']);
+    Route::get('/posts/{id}', [App\Http\Controllers\AdminPostController::class, 'show']);
+    Route::post('/posts/{id}/approve', [App\Http\Controllers\AdminPostController::class, 'approve']);
+    Route::post('/posts/{id}/reject', [App\Http\Controllers\AdminPostController::class, 'reject']);
+    Route::delete('/posts/{id}', [App\Http\Controllers\AdminPostController::class, 'destroy']);
+    
     // Gestion des packs
     Route::apiResource('packs', \App\Http\Controllers\Admin\PackController::class);
     Route::patch('packs/{pack}/toggle-status', [\App\Http\Controllers\Admin\PackController::class, 'toggleStatus']);
