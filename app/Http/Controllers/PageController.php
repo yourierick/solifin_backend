@@ -16,6 +16,34 @@ class PageController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
+    /**
+     * Calculer le nombre total de likes pour une page
+     * en comptant les likes de toutes les tables
+     *
+     * @param  \App\Models\Page  $page
+     * @return int
+     */
+    private function calculateTotalLikes($page)
+    {
+        // Compter les likes des offres d'emploi
+        $offreEmploiLikes = \App\Models\OffreEmploiLike::whereIn('offre_emploi_id', function($query) use ($page) {
+            $query->select('id')->from('offres_emploi')->where('page_id', $page->id);
+        })->count();
+        
+        // Compter les likes des opportunités d'affaires
+        $opportuniteAffaireLikes = \App\Models\OpportuniteAffaireLike::whereIn('opportunite_affaire_id', function($query) use ($page) {
+            $query->select('id')->from('opportunites_affaires')->where('page_id', $page->id);
+        })->count();
+        
+        // Compter les likes des publicités
+        $publiciteLikes = \App\Models\PubliciteLike::whereIn('publicite_id', function($query) use ($page) {
+            $query->select('id')->from('publicites')->where('page_id', $page->id);
+        })->count();
+        
+        // Retourner le total
+        return $offreEmploiLikes + $opportuniteAffaireLikes + $publiciteLikes;
+    }
+
     public function getMyPage()
     {
         $user = Auth::user();
@@ -46,6 +74,13 @@ class PageController extends Controller
                 }
             }
         }
+        
+        // Calculer le nombre total de likes pour cette page
+        $totalLikes = $this->calculateTotalLikes($page);
+        
+        // Mettre à jour le nombre de likes dans la base de données
+        $page->nombre_likes = $totalLikes;
+        $page->save();
 
         return response()->json([
             'success' => true,

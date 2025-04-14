@@ -17,6 +17,7 @@ class OffreEmploi extends Model
 
     protected $fillable = [
         'page_id',
+        'reference',
         'titre',
         'entreprise',
         'lieu',

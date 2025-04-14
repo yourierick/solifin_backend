@@ -29,6 +29,8 @@ class OpportuniteAffaire extends Model
         'localisation',
         'contacts',
         'email',
+        'opportunity_file',
+        'lien',
         'conditions_participation',
         'date_limite',
         'statut',

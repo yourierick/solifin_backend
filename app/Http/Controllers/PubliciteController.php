@@ -722,7 +722,9 @@ class PubliciteController extends Controller
         // Compter les likes pour cette publication
         $post->likes_count = PubliciteLike::where('publicite_id', $post->id)->count();
 
+        // Type de publication
         $post->type = "publicites";
+
                     
         // Vérifier si l'utilisateur a aimé cette publication
         $post->is_liked = PubliciteLike::where('publicite_id', $post->id)

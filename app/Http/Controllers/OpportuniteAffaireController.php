@@ -7,6 +7,7 @@ use App\Models\OpportuniteAffaireLike;
 use App\Models\OpportuniteAffaireComment;
 use App\Models\OpportuniteAffaireShare;
 use App\Models\Page;
+use App\Models\PageAbonnes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -41,6 +42,14 @@ class OpportuniteAffaireController extends Controller
         }
         
         $opportunites = $query->orderBy('created_at', 'desc')->paginate(10);
+
+        // Ajouter l'URL complète du fichier PDF pour chaque opportunité
+        $opportunites->getCollection()->transform(function ($opportunite) {
+            if ($opportunite->opportunity_file) {
+                $opportunite->opportunity_file_url = asset('storage/' . $opportunite->opportunity_file);
+            }
+            return $opportunite;
+        });
         
         return response()->json([
             'success' => true,
@@ -86,6 +95,8 @@ class OpportuniteAffaireController extends Controller
             'localisation' => 'nullable|string|max:255',
             'contacts' => 'required|string',
             'email' => 'nullable|email',
+            'opportunity_file' => 'nullable|file|mimes:pdf|max:5000', // 5MB max
+            'lien' => 'nullable|url',
             'conditions_participation' => 'nullable|string',
             'date_limite' => 'nullable|date',
         ]);
@@ -126,7 +137,7 @@ class OpportuniteAffaireController extends Controller
             ]);
         }
 
-        $data = $request->except(['image']);
+        $data = $request->except(['image', 'opportunity_file']);
         $data['page_id'] = $page->id;
         $data['statut'] = 'en_attente';
         $data['etat'] = 'disponible';
@@ -137,6 +148,12 @@ class OpportuniteAffaireController extends Controller
             $data['image'] = $path;
         }
 
+        // Traitement du fichier PDF
+        if ($request->hasFile('opportunity_file')) {
+            $path = $request->file('opportunity_file')->store('opportunites/files', 'public');
+            $data['opportunity_file'] = $path;
+        }
+        
         $opportunite = OpportuniteAffaire::create($data);
         
         return response()->json([
@@ -165,6 +182,11 @@ class OpportuniteAffaireController extends Controller
         if ($opportunite->video) {
             $opportunite->video_url = asset('storage/' . $opportunite->video);
         }
+
+        // Ajouter l'URL complète du fichier PDF si elle existe
+        if ($opportunite->opportunity_file) {
+            $opportunite->opportunity_file_url = asset('storage/' . $opportunite->opportunity_file);
+        }
         
         return response()->json([
             'success' => true,
@@ -181,6 +203,7 @@ class OpportuniteAffaireController extends Controller
      */
     public function update(Request $request, $id)
     {
+        \Log::info($request->file('opportunity_file'));
         $opportunite = OpportuniteAffaire::findOrFail($id);
         $user = Auth::user();
         
@@ -204,6 +227,8 @@ class OpportuniteAffaireController extends Controller
             'localisation' => 'nullable|string|max:255',
             'contacts' => 'nullable|string',
             'email' => 'nullable|email',
+            'opportunity_file' => 'nullable|file|mimes:pdf|max:5000', // 5MB max
+            'lien' => 'nullable|url',
             'conditions_participation' => 'nullable|string',
             'date_limite' => 'nullable|date',
             'statut' => 'nullable|in:en_attente,approuvé,rejeté,expiré',
@@ -217,7 +242,7 @@ class OpportuniteAffaireController extends Controller
             ], 422);
         }
 
-        $data = $request->except(['image']);
+        $data = $request->except(['image', 'opportunity_file']);
         
         // Si l'utilisateur n'est pas admin, l'opportunité revient en attente si certains champs sont modifiés
         if (!$user->is_admin && $request->has(['titre', 'description', 'investissement_requis'])) {
@@ -240,6 +265,23 @@ class OpportuniteAffaireController extends Controller
                 $data['image'] = null;
             }
         }
+
+        // Traitement du fichier PDF
+        if ($request->hasFile('opportunity_file')) {
+            // Supprimer l'ancien fichier PDF si elle existe
+            if ($opportunite->opportunity_file) {
+                Storage::disk('public')->delete($opportunite->opportunity_file);
+            }
+            
+            $path = $request->file('opportunity_file')->store('opportunites/files', 'public');
+            $data['opportunity_file'] = $path;
+        } else if ($request->has('remove_opportunity_file') && $request->input('remove_opportunity_file') == '1') {
+            // Supprimer le fichier PDF sans le remplacer
+            if ($opportunite->opportunity_file) {
+                Storage::disk('public')->delete($opportunite->opportunity_file);
+                $data['opportunity_file'] = null;
+            }
+        }
         
         // Traitement de la vidéo
         if ($request->hasFile('video')) {
@@ -258,12 +300,14 @@ class OpportuniteAffaireController extends Controller
             }
         }
         
+        $data['devise'] = $request->devise;
+        $data['duree_retour_investissement'] = $request->duree_retour_investissement;
+        $data['lien'] = $request->lien;
         $opportunite->update($data);
         
         return response()->json([
             'success' => true,
             'message' => 'Opportunité d\'affaire mise à jour avec succès.',
-            'opportunite' => $opportunite
         ]);
     }
 
@@ -372,7 +416,18 @@ class OpportuniteAffaireController extends Controller
         
         // Supprimer l'image associée
         if ($opportunite->image) {
-            Storage::disk('public')->delete($opportunite->image);
+            // Supprimer l'image
+            if (Storage::disk('public')->exists($opportunite->image)) {
+                Storage::disk('public')->delete($opportunite->image);
+            }
+        }
+
+        // Supprimer le fichier PDF associé
+        if ($opportunite->opportunity_file) {
+            // Supprimer le fichier PDF
+            if (Storage::disk('public')->exists($opportunite->opportunity_file)) {
+                Storage::disk('public')->delete($opportunite->opportunity_file);
+            }
         }
         
         $opportunite->delete();
@@ -602,6 +657,76 @@ class OpportuniteAffaireController extends Controller
             'success' => true,
             'shares' => $shares,
             'shares_count' => $shares->count()
+        ]);
+    }
+
+    public function details($id)
+    {
+        $userId = Auth::id();
+        $post = OpportuniteAffaire::with(['page', 'page.user'])
+            ->findOrFail($id);
+
+        $post->user->picture = asset('storage/' . $post->user->picture);
+
+        // Vérifier si l'utilisateur est abonné à cette page
+        $post->is_subscribed = PageAbonnes::where('user_id', $userId)
+        ->where('page_id', $post->page_id)
+        ->exists();
+
+        // Compter les likes pour cette publication
+        $post->likes_count = OpportuniteAffaireLike::where('opportunite_affaire_id', $post->id)->count();
+
+        // Type de publication
+        $post->type = "opportunites-affaires";
+        $post->external_link = $post->lien;
+
+                    
+        // Vérifier si l'utilisateur a aimé cette publication
+        $post->is_liked = OpportuniteAffaireLike::where('opportunite_affaire_id', $post->id)
+            ->where('user_id', $userId)
+            ->exists();
+
+        // Ajouter l'URL complète de l'image si elle existe
+        if ($post->image) {
+            $post->image_url = asset('storage/' . $post->image);
+        }
+
+        // Ajouter l'URL complète du fichier opportunité d'affaire si elle existe
+        if ($post->opportunity_file) {
+            $post->opportunity_file_url = asset('storage/' . $post->opportunity_file);
+        }
+        
+        // Compter les commentaires pour cette publication
+        $post->comments_count = OpportuniteAffaireComment::where('opportunite_affaire_id', $post->id)->count();
+        
+        // Récupérer les 3 derniers commentaires
+        $post->comments = OpportuniteAffaireComment::where('opportunite_affaire_id', $post->id)
+            ->with('user')
+            ->orderBy('created_at', 'desc')
+            ->take(3)
+            ->get()
+            ->map(function($comment) use ($userId) {
+                return [
+                    'id' => $comment->id,
+                    'content' => $comment->content,
+                    'created_at' => $comment->created_at,
+                    'created_at_formatted' => $comment->created_at->diffForHumans(),
+                    'user' => [
+                        'id' => $comment->user->id,
+                        'name' => $comment->user->name,
+                        'picture' => $comment->user->picture ? asset('storage/' . $comment->user->picture) : null
+                    ],
+                    'likes_count' => 0, // À implémenter si les commentaires ont des likes
+                    'is_liked' => false // À implémenter si les commentaires ont des likes
+                ];
+            });
+        
+        // Compter les partages pour cette publication
+        $post->shares_count = OpportuniteAffaireShare::where('opportunite_affaire_id', $post->id)->count();
+        
+        return response()->json([
+            'success' => true,
+            'post' => $post
         ]);
     }
 }
