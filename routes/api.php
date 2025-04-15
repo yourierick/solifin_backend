@@ -148,6 +148,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/offres-emploi', [App\Http\Controllers\OffreEmploiController::class, 'index']);
     Route::post('/offres-emploi', [App\Http\Controllers\OffreEmploiController::class, 'store']);
     Route::get('/offres-emploi/{id}', [App\Http\Controllers\OffreEmploiController::class, 'show']);
+    Route::get('/offres-emploi/{id}/details', [App\Http\Controllers\OffreEmploiController::class, 'details']);
     Route::put('/offres-emploi/{id}', [App\Http\Controllers\OffreEmploiController::class, 'update']);
     Route::delete('/offres-emploi/{id}', [App\Http\Controllers\OffreEmploiController::class, 'destroy']);
     Route::put('/offres-emploi/{id}/etat', [App\Http\Controllers\OffreEmploiController::class, 'changeEtat']);
@@ -178,6 +179,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/opportunites-affaires', [App\Http\Controllers\OpportuniteAffaireController::class, 'index']);
     Route::post('/opportunites-affaires', [App\Http\Controllers\OpportuniteAffaireController::class, 'store']);
     Route::get('/opportunites-affaires/{id}', [App\Http\Controllers\OpportuniteAffaireController::class, 'show']);
+    Route::get('/opportunites-affaires/{id}/details', [App\Http\Controllers\OpportuniteAffaireController::class, 'details']);
     Route::put('/opportunites-affaires/{id}', [App\Http\Controllers\OpportuniteAffaireController::class, 'update']);
     Route::delete('/opportunites-affaires/{id}', [App\Http\Controllers\OpportuniteAffaireController::class, 'destroy']);
     Route::put('/opportunites-affaires/{id}/etat', [App\Http\Controllers\OpportuniteAffaireController::class, 'changeEtat']);
@@ -228,24 +230,6 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::get('withdrawal-requests/{withdrawalRequest}', [WithdrawalRequestController::class, 'show']);
     Route::post('withdrawal-requests/{withdrawalRequest}/process', [WithdrawalRequestController::class, 'process']);
 
-    // Routes pour la validation des publicités
-    Route::get('advertisements/pending', [AdvertisementValidationController::class, 'index']);
-    Route::post('advertisements/{advertisement}/approve', [AdvertisementValidationController::class, 'approve']);
-    Route::post('advertisements/{advertisement}/reject', [AdvertisementValidationController::class, 'reject']);
-    Route::post('advertisements/{advertisement}/publish', [AdvertisementValidationController::class, 'publish']);
-    Route::post('advertisements/{advertisement}/unpublish', [AdvertisementValidationController::class, 'unpublish']);
-    Route::get('advertisements/{advertisement}/history', [AdvertisementValidationController::class, 'history']);
-
-    // Business Opportunity Validations
-    Route::get('business-opportunities/validations', [BusinessOpportunityValidationController::class, 'index']);
-    Route::get('business-opportunities/validations/pending', [BusinessOpportunityValidationController::class, 'pending']);
-    Route::post('business-opportunities/{opportunity}/validate', [BusinessOpportunityValidationController::class, 'validate']);
-
-    // Job Offer Validations
-    Route::get('job-offers/validations', [JobOfferValidationController::class, 'index']);
-    Route::get('job-offers/validations/pending', [JobOfferValidationController::class, 'pending']);
-    Route::post('job-offers/{offer}/validate', [JobOfferValidationController::class, 'validate']);
-
     // Routes de gestion des commissions
     Route::get('/packs/{pack}/commission-rates', [PackController::class, 'getCommissionRates']);
     Route::post('/packs/{pack}/commission-rate', [PackController::class, 'updateCommissionRate']);
@@ -259,9 +243,37 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // Routes pour la gestion des wallets
     Route::get('/wallets/data', [WalletController::class, 'getWalletData']);
     Route::post('/admin/wallets/withdraw', [WalletController::class, 'withdraw']);
+
+    // Routes pour les publicités
+    Route::get('/advertisements', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'index']);
+    // Route::get('/advertisements/pending', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'getPendingAds']);
+    // Route::get('/advertisements/approved', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'getApprovedAds']);
+    // Route::get('/advertisements/rejected', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'getRejectedAds']);
+    Route::post('/advertisements/{id}/approve', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'approve']);
+    Route::post('/advertisements/{id}/reject', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'reject']);
+    Route::patch('/advertisements/{id}/status', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'updateStatus']);
+    Route::patch('/advertisements/{id}/etat', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'updateEtat']);
+    Route::delete('/advertisements/{id}', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'destroy']);
     
-    // Routes pour l'administration des publications
-    Route::get('/admin/publications/pending', [App\Http\Controllers\AdminPublicationController::class, 'getPendingPublications']);
-    Route::post('/admin/publications/validate', [App\Http\Controllers\AdminPublicationController::class, 'validatePublication']);
-    Route::get('/admin/publications/stats', [App\Http\Controllers\AdminPublicationController::class, 'getPublicationStats']);
+    // Routes pour les offres d'emploi
+    Route::get('/job-offers', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'index']);
+    // Route::get('/job-offers/pending', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'pending']);
+    // Route::get('/job-offers/approved', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'approved']);
+    // Route::get('/job-offers/rejected', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'rejected']);
+    Route::post('/job-offers/{id}/approve', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'approve']);
+    Route::post('/job-offers/{id}/reject', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'reject']);
+    Route::patch('/job-offers/{id}/status', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'updateStatus']);
+    Route::patch('/job-offers/{id}/etat', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'updateEtat']);
+    Route::delete('/job-offers/{id}', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'destroy']);
+    
+    // Routes pour les opportunités d'affaires
+    Route::get('/business-opportunities', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'index']);
+    // Route::get('/business-opportunities/pending', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'pending']);
+    // Route::get('/business-opportunities/approved', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'approved']);
+    // Route::get('/business-opportunities/rejected', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'rejected']);
+    Route::post('/business-opportunities/{id}/approve', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'approve']);
+    Route::post('/business-opportunities/{id}/reject', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'reject']);
+    Route::patch('/business-opportunities/{id}/status', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateStatus']);
+    Route::patch('/business-opportunities/{id}/etat', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateEtat']);
+    Route::delete('/business-opportunities/{id}', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'destroy']);
 });

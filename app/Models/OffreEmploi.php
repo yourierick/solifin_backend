@@ -17,6 +17,7 @@ class OffreEmploi extends Model
 
     protected $fillable = [
         'page_id',
+        'reference',
         'titre',
         'entreprise',
         'lieu',
@@ -34,6 +35,7 @@ class OffreEmploi extends Model
         'lien',
         'offer_file',
         'statut',
+        'raison_rejet',
         'etat',
     ];
 

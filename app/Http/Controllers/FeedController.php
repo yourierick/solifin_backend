@@ -32,6 +32,7 @@ class FeedController extends Controller
      */
     public function index(Request $request)
     {
+        \Log::info($request->all());
         $type = $request->input('type', 'publicites');
         $lastId = $request->input('last_id', 0);
         $limit = $request->input('limit', 10);
@@ -85,6 +86,8 @@ class FeedController extends Controller
             $post->title = $publication->titre;
             $post->content = $publication->description ?? '';
             $post->external_link = $publication->lien ?? null;
+            $post->statut = $publication->statut;
+            $post->etat = $publication->etat;
             $post->created_at = $publication->created_at;
             $post->created_at_formatted = $publication->created_at->diffForHumans();
             
@@ -105,6 +108,7 @@ class FeedController extends Controller
                 $post->location = $publication->lieu;
                 $post->salary_range = $publication->salaire . ' ' . $publication->devise;
                 $post->sector = $publication->secteur ?? '';
+                $post->reference = $publication->reference;
             } elseif ($type === 'opportunites-affaires') {
                 $post->investment_amount = $publication->investissement_requis . ' ' . $publication->devise;
                 $post->sector = $publication->secteur;
@@ -144,6 +148,9 @@ class FeedController extends Controller
                 case 'offres-emploi':
                     // Compter les likes pour cette offre d'emploi
                     $post->likes_count = OffreEmploiLike::where('offre_emploi_id', $publication->id)->count();
+                    
+                    
+                    $post->offer_file_url = $publication->offer_file ? asset('storage/' . $publication->offer_file) : null;
                     
                     // Vérifier si l'utilisateur a aimé cette offre d'emploi
                     $post->is_liked = OffreEmploiLike::where('offre_emploi_id', $publication->id)

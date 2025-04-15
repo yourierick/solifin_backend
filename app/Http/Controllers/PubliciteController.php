@@ -187,8 +187,18 @@ class PubliciteController extends Controller
             }
     
             $publicite = Publicite::create($data);
-    
-            
+
+            // Créer une notification pour l'administrateur
+            $admins = \App\Models\User::where('is_admin', true)->get();
+            foreach ($admins as $admin) {
+                $admin->notify(new \App\Notifications\PublicationSubmitted([
+                    'type' => 'publicite',
+                    'id' => $publicite->id,
+                    'titre' => "Publicité, titre: " . ($publicite->titre ?? 'Non défini') . ", en attente d'approbation",
+                    'user_id' => $user->id,
+                    'user_name' => $user->name
+                ]));
+            }
             
             return response()->json([
                 'success' => true,
@@ -722,7 +732,9 @@ class PubliciteController extends Controller
         // Compter les likes pour cette publication
         $post->likes_count = PubliciteLike::where('publicite_id', $post->id)->count();
 
+        // Type de publication
         $post->type = "publicites";
+
                     
         // Vérifier si l'utilisateur a aimé cette publication
         $post->is_liked = PubliciteLike::where('publicite_id', $post->id)

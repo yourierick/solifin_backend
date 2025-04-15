@@ -36,6 +36,7 @@ class Publicite extends Model
         'prix_unitaire_livraison',
         'lien',
         'statut',
+        'raison_rejet',
         'etat',
         'duree_affichage',
     ];

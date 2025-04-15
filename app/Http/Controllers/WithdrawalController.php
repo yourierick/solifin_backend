@@ -57,7 +57,6 @@ class WithdrawalController extends Controller
 
     public function sendOtp(Request $request)
     {
-        \Log::info($request);
         try {
             $validator = Validator::make($request->all(), [
                 'phone_number' => 'required_if:payment_method,orange-money,airtel-money,m-pesa,afrimoney',

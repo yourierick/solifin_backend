@@ -11,22 +11,17 @@ class PublicationStatusChanged extends Notification implements ShouldQueue
 {
     use Queueable;
 
-    protected $publication;
-    protected $publicationType;
-    protected $oldStatus;
-    protected $newStatus;
+    protected $data;
 
     /**
      * Create a new notification instance.
      *
+     * @param  array  $data
      * @return void
      */
-    public function __construct($publication, $publicationType, $oldStatus, $newStatus)
+    public function __construct(array $data)
     {
-        $this->publication = $publication;
-        $this->publicationType = $publicationType;
-        $this->oldStatus = $oldStatus;
-        $this->newStatus = $newStatus;
+        $this->data = $data;
     }
 
     /**
@@ -51,20 +46,33 @@ class PublicationStatusChanged extends Notification implements ShouldQueue
         $message = (new MailMessage)
             ->subject('Statut de votre publication modifié');
 
-        if ($this->newStatus === 'approuvé') {
+        if ($this->data['statut'] === 'approuve') {
             $message->line('Bonne nouvelle ! Votre publication a été approuvée.')
-                ->line('Titre: ' . $this->publication->titre);
-        } elseif ($this->newStatus === 'rejeté') {
+                ->line('Titre: ' . $this->data['titre']);
+        } elseif ($this->data['statut'] === 'rejete') {
             $message->line('Votre publication a été rejetée.')
-                ->line('Titre: ' . $this->publication->titre)
-                ->line('Veuillez contacter notre équipe pour plus d\'informations.');
-        } elseif ($this->newStatus === 'expiré') {
-            $message->line('Votre publication a expiré.')
-                ->line('Titre: ' . $this->publication->titre)
-                ->line('Elle n\'est plus visible pour les autres utilisateurs.');
+                ->line('Titre: ' . $this->data['titre'])
+                ->line(isset($this->data['raison']) ? 'Raison: ' . $this->data['raison'] : 'Veuillez contacter notre équipe pour plus d\'informations.');
+        } elseif ($this->data['statut'] === 'en_attente') {
+            $message->line('Votre publication a été mise en attente.')
+                ->line('Titre: ' . $this->data['titre'])
+                ->line('Elle sera examinée par notre équipe prochainement.');
         }
 
-        return $message->action('Voir mes publications', url('/publications'))
+        $url = '/dashboard';
+        switch ($this->data['type']) {
+            case 'publicites':
+                $url = '/publicites/' . $this->data['id'];
+                break;
+            case 'offres_emploi':
+                $url = '/offres-emploi/' . $this->data['id'];
+                break;
+            case 'opportunites_affaires':
+                $url = '/opportunites-affaires/' . $this->data['id'];
+                break;
+        }
+
+        return $message->action('Voir ma publication', url($url))
             ->line('Merci d\'utiliser notre application !');
     }
 
@@ -77,41 +85,38 @@ class PublicationStatusChanged extends Notification implements ShouldQueue
     public function toArray($notifiable)
     {
         $type = 'info';
-        $message = '';
-        $link = '/dashboard';
+        $message = isset($this->data['message']) ? $this->data['message'] : '';
+        $link = '/dashboard/my-page';
 
-        switch ($this->publicationType) {
-            case 'publicite':
-                $link = '/publicites/' . $this->publication->id;
-                break;
-            case 'offre_emploi':
-                $link = '/offres-emploi/' . $this->publication->id;
-                break;
-            case 'opportunite_affaire':
-                $link = '/opportunites-affaires/' . $this->publication->id;
-                break;
-        }
-
-        if ($this->newStatus === 'approuvé') {
+        // Déterminer le type de notification en fonction du statut
+        if ($this->data['statut'] === 'approuve') {
             $type = 'success';
-            $message = 'Votre ' . $this->getPublicationTypeName() . ' "' . $this->publication->titre . '" a été approuvée et est maintenant visible.';
-        } elseif ($this->newStatus === 'rejeté') {
+            if (empty($message)) {
+                $message = 'Votre publication "' . $this->data['titre'] . '" a été approuvée et est maintenant visible.';
+            }
+        } elseif ($this->data['statut'] === 'rejete') {
             $type = 'danger';
-            $message = 'Votre ' . $this->getPublicationTypeName() . ' "' . $this->publication->titre . '" a été rejetée. Veuillez la réviser.';
-        } elseif ($this->newStatus === 'expiré') {
+            if (empty($message)) {
+                $message = 'Votre publication "' . $this->data['titre'] . '" a été rejetée.';
+                if (isset($this->data['raison'])) {
+                    $message .= ' Raison: ' . $this->data['raison'];
+                }
+            }
+        } elseif ($this->data['statut'] === 'en_attente') {
             $type = 'warning';
-            $message = 'Votre ' . $this->getPublicationTypeName() . ' "' . $this->publication->titre . '" a expiré et n\'est plus visible.';
+            if (empty($message)) {
+                $message = 'Votre publication "' . $this->data['titre'] . '" a été mise en attente et sera examinée prochainement.';  
+            }
         }
 
         return [
             'type' => $type,
             'message' => $message,
             'link' => $link,
-            'user_name' => 'SOLIFIN',
-            'publication_id' => $this->publication->id,
-            'publication_type' => $this->publicationType,
-            'old_status' => $this->oldStatus,
-            'new_status' => $this->newStatus,
+            'publication_id' => $this->data['id'],
+            'publication_type' => $this->data['type'],
+            'statut' => $this->data['statut'],
+            'titre' => $this->data['titre']
         ];
     }
 

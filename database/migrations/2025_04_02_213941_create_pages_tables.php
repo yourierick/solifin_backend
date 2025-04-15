@@ -53,6 +53,7 @@ return new class extends Migration
             $table->decimal('prix_unitaire_livraison', 15, 2)->nullable();
             $table->string('lien')->nullable();
             $table->enum('statut', ['en_attente', 'approuvé', 'rejeté', 'expiré'])->default('en_attente');
+            $table->string('raison_rejet')->nullable();
             $table->enum('etat', ['disponible', 'terminé'])->default('disponible');
             $table->integer('duree_affichage')->nullable()->comment('Durée en jours'); 
             $table->timestamps();
@@ -62,6 +63,7 @@ return new class extends Migration
         Schema::create('offres_emploi', function (Blueprint $table) {
             $table->id();
             $table->foreignId('page_id')->constrained()->onDelete('cascade');
+            $table->string('reference')->nullable();
             $table->string('titre');
             $table->string('entreprise');
             $table->string('lieu');
@@ -79,6 +81,7 @@ return new class extends Migration
             $table->string('offer_file')->nullable();
             $table->string('lien')->nullable();
             $table->enum('statut', ['en_attente', 'approuvé', 'rejeté', 'expiré'])->default('en_attente');
+            $table->string('raison_rejet')->nullable();
             $table->enum('etat', ['disponible', 'terminé'])->default('disponible');
             $table->timestamps();
         });
@@ -98,9 +101,12 @@ return new class extends Migration
             $table->string('localisation')->nullable();
             $table->string('contacts');
             $table->string('email')->nullable();
+            $table->string('opportunity_file')->nullable();
+            $table->string('lien')->nullable();
             $table->text('conditions_participation')->nullable();
             $table->date('date_limite')->nullable();
             $table->enum('statut', ['en_attente', 'approuvé', 'rejeté', 'expiré'])->default('en_attente');
+            $table->string('raison_rejet')->nullable();
             $table->enum('etat', ['disponible', 'terminé'])->default('disponible');
             $table->timestamps();
         });

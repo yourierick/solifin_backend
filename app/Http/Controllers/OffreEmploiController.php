@@ -6,6 +6,7 @@ use App\Models\OffreEmploi;
 use App\Models\OffreEmploiLike;
 use App\Models\OffreEmploiComment;
 use App\Models\OffreEmploiShare;
+use App\Models\PageAbonnes;
 use App\Models\Page;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -83,6 +84,7 @@ class OffreEmploiController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'titre' => 'required|string|max:255',
+            'reference' => 'nullable|string|max:255',
             'entreprise' => 'required|string|max:255',
             'lieu' => 'required|string|max:255',
             'type_contrat' => 'required|string|max:255',
@@ -151,6 +153,18 @@ class OffreEmploiController extends Controller
 
         $offre = OffreEmploi::create($data);
         
+        // Créer une notification pour l'administrateur
+        $admins = \App\Models\User::where('is_admin', true)->get();
+        foreach ($admins as $admin) {
+            $admin->notify(new \App\Notifications\PublicationSubmitted([
+                'type' => 'offre_emploi',
+                'id' => $offre->id,
+                'titre' => "Offre d'emploi, référence : " . ($offre->reference ?? 'Non définie') . " est en attente d'approbation",
+                'user_id' => $user->id,
+                'user_name' => $user->name
+            ]));
+        }
+        
         return response()->json([
             'success' => true,
             'message' => 'Offre d\'emploi créée avec succès. Elle est en attente de validation.',
@@ -211,6 +225,7 @@ class OffreEmploiController extends Controller
 
         $validator = Validator::make($request->all(), [
             'titre' => 'nullable|string|max:255',
+            'reference' => 'nullable|string|max:255',
             'entreprise' => 'nullable|string|max:255',
             'lieu' => 'nullable|string|max:255',
             'type_contrat' => 'nullable|string|max:255',
@@ -646,6 +661,92 @@ class OffreEmploiController extends Controller
             'success' => true,
             'shares' => $shares,
             'shares_count' => $shares->count()
+        ]);
+    }
+
+    public function details($id)
+    {
+        $userId = Auth::id();
+        $post = OffreEmploi::with(['page', 'page.user'])
+            ->findOrFail($id);
+
+        // Vérifier si l'utilisateur est abonné à cette page
+        $post->is_subscribed = PageAbonnes::where('user_id', $userId)
+            ->where('page_id', $post->page_id)
+            ->exists();
+
+        // Compter les likes pour cette publication
+        $post->likes_count = OffreEmploiLike::where('offre_emploi_id', $post->id)->count();
+
+        // Type de publication
+        $post->type = "offres-emploi";
+
+        // Vérifier si l'utilisateur a aimé cette publication
+        $post->is_liked = OffreEmploiLike::where('offre_emploi_id', $post->id)
+            ->where('user_id', $userId)
+            ->exists();
+        
+        // Ajouter l'URL complète du fichier d'offre s'il existe
+        if ($post->offer_file) {
+            $post->offer_file_url = asset('storage/' . $post->offer_file);
+        }
+        
+        // Compter les commentaires pour cette publication
+        $post->comments_count = OffreEmploiComment::where('offre_emploi_id', $post->id)->count();
+        
+        // Compter les partages pour cette publication
+        $post->shares_count = OffreEmploiShare::where('offre_emploi_id', $post->id)->count();
+        
+        // Ajouter les informations détaillées de l'offre d'emploi
+        $post->titre = $post->title;
+        $post->company_name = $post->entreprise;
+        $post->location = $post->location;
+        $post->type_contrat = $post->type_contrat;
+        $post->description = $post->description;
+        $post->competences_requises = $post->competences_requises;
+        $post->experience_requise = $post->experience_requise;
+        $post->niveau_etudes = $post->niveau_etudes;
+        $post->salaire = $post->salaire;
+        $post->devise = $post->devise;
+        $post->avantages = $post->avantages;
+        $post->date_limite = $post->date_limite;
+        $post->email_contact = $post->email_contact;
+        $post->contacts = $post->contacts;
+        $post->user = $post->page->user;
+        $post->user->picture = asset('storage/' . $post->user->picture);
+        $post->external_link = $post->external_link;
+        
+        // Récupérer les 3 derniers commentaires
+        $post->comments = OffreEmploiComment::where('offre_emploi_id', $post->id)
+            ->with('user')
+            ->orderBy('created_at', 'desc')
+            ->take(3)
+            ->get()
+            ->map(function($comment) use ($userId) {
+                $userData = [
+                    'id' => $comment->user->id,
+                    'name' => $comment->user->name,
+                ];
+                
+                if ($comment->user->picture) {
+                    $userData['picture'] = asset('storage/' . $comment->user->picture);
+                }
+                
+                return [
+                    'id' => $comment->id,
+                    'content' => $comment->content,
+                    'created_at' => $comment->created_at,
+                    'created_at_formatted' => $comment->created_at->diffForHumans(),
+                    'user' => $userData
+                ];
+            });
+        
+        // Compter les partages pour cette publication
+        $post->shares_count = OffreEmploiShare::where('offre_emploi_id', $post->id)->count();
+        
+        return response()->json([
+            'success' => true,
+            'post' => $post
         ]);
     }
 }
