@@ -741,4 +741,8 @@ class OpportuniteAffaireController extends Controller
             'post' => $post
         ]);
     }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 8714da400630a70f16f1f41c93882b66ad73dba1
