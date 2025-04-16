@@ -25,6 +25,7 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use App\Http\Controllers\StatsController;
 use App\Http\Controllers\WithdrawalController;
+use App\Http\Controllers\Api\CurrencyController;
 
 /*
 |--------------------------------------------------------------------------
@@ -54,6 +55,9 @@ Route::middleware('throttle:api')->group(function () {
     Route::post('/auth/forgot-password', [PasswordResetController::class, 'sendResetLinkEmail']);
     Route::post('/auth/reset-password', [PasswordResetController::class, 'reset']);
 
+    // Routes de conversion de devise
+    Route::post('/currency/convert', [CurrencyController::class, 'convert']);
+    
     // Routes de vérification d'email
     Route::post('/email/verification-notification', function (Request $request) {
         $request->user()->sendEmailVerificationNotification();
@@ -197,10 +201,22 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Route pour vérifier le statut du pack de publication
     Route::get('/user-pack/status', [App\Http\Controllers\UserPackController::class, 'checkPackStatus']);
+    
+    // Routes pour les frais de transaction
+    Route::prefix('transaction-fees')->group(function () {
+        Route::get('/payment-method', [App\Http\Controllers\Api\TransactionFeeApiController::class, 'getFeesForPaymentMethod']);
+        Route::get('/withdrawal', [App\Http\Controllers\Api\TransactionFeeApiController::class, 'getWithdrawalFee']);
+        Route::get('/deposit', [App\Http\Controllers\Api\TransactionFeeApiController::class, 'getDepositFee']);
+        Route::get('/calculate-purchase', [App\Http\Controllers\Api\TransactionFeeApiController::class, 'calculatePurchaseFee']);
+        Route::post('/calculate-pack-purchase', [App\Http\Controllers\Api\TransactionFeeApiController::class, 'calculatePackPurchaseFee']);
+    });
 });
 
 // Routes admin
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+    // Routes pour les frais de transaction
+    Route::apiResource('transaction-fees', \App\Http\Controllers\Admin\TransactionFeeController::class);
+    Route::post('transaction-fees/{id}/toggle-active', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'toggleActive']);
     // Gestion des publications
     Route::get('/posts', [App\Http\Controllers\AdminPostController::class, 'index']);
     Route::get('/posts/{id}', [App\Http\Controllers\AdminPostController::class, 'show']);
@@ -268,6 +284,16 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     
     // Routes pour les opportunités d'affaires
     Route::get('/business-opportunities', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'index']);
+    
+    // Routes pour la gestion des frais de transaction
+    Route::prefix('transaction-fees')->group(function () {
+        Route::get('/', [App\Http\Controllers\Admin\TransactionFeeController::class, 'index']);
+        Route::post('/', [App\Http\Controllers\Admin\TransactionFeeController::class, 'store']);
+        Route::get('/{id}', [App\Http\Controllers\Admin\TransactionFeeController::class, 'show']);
+        Route::put('/{id}', [App\Http\Controllers\Admin\TransactionFeeController::class, 'update']);
+        Route::delete('/{id}', [App\Http\Controllers\Admin\TransactionFeeController::class, 'destroy']);
+        Route::post('/update-from-api', [App\Http\Controllers\Admin\TransactionFeeController::class, 'updateFromApi']);
+    });
     // Route::get('/business-opportunities/pending', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'pending']);
     // Route::get('/business-opportunities/approved', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'approved']);
     // Route::get('/business-opportunities/rejected', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'rejected']);

@@ -16,3 +16,8 @@ Schedule::command('packs:check-expiration')
 Schedule::command('publications:update-status')
     ->daily()
     ->description('Met à jour le statut des publications expirées tous les jours à minuit');
+
+Schedule::command('transaction-fees:update')
+    ->daily()
+    ->at('01:00')
+    ->description('Met à jour les frais de transaction depuis l\'API externe tous les jours à 1h du matin');

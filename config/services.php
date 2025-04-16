@@ -47,4 +47,10 @@ return [
         'secret' => env('VONAGE_SECRET'),
         'sms_from' => env('VONAGE_SMS_FROM', 'SOLIFIN'),
     ],
+
+    'transaction_fees' => [
+        'api_url' => env('TRANSACTION_FEES_API_URL'),
+        'api_key' => env('TRANSACTION_FEES_API_KEY'),
+        'update_frequency' => env('TRANSACTION_FEES_UPDATE_FREQUENCY', 'daily'), // daily, hourly, etc.
+    ],
 ];
