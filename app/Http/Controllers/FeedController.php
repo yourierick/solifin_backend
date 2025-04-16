@@ -95,7 +95,7 @@ class FeedController extends Controller
             $post->page_id = $publication->page_id;
             $post->page = $publication->page;
             $post->user = $publication->page->user;
-            $post->user->picture = asset('storage/' . $publication->page->user->picture);
+            $post->user->picture_url = asset('storage/' . $publication->page->user->picture);
             
             // Vérifier si l'utilisateur est abonné à cette page
             $post->is_subscribed = PageAbonnes::where('user_id', $userId)

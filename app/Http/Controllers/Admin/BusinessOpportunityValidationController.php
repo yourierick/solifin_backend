@@ -50,37 +50,6 @@ class BusinessOpportunityValidationController extends Controller
     }
     
     /**
-     * Récupérer les opportunités d'affaires en attente de validation
-     *
-     * @return \Illuminate\Http\Response
-     */
-    // public function getPendingBusinessOpportunities()
-    // {
-    //     // Vérifier si l'utilisateur est un administrateur
-    //     if (!Auth::user()->is_admin) {
-    //         return response()->json(['message' => 'Non autorisé'], 403);
-    //     }
-        
-    //     try {
-    //         $pendingOpportunities = OpportuniteAffaire::with('user')
-    //             ->where('statut', 'en_attente')
-    //             ->orderBy('created_at', 'desc')
-    //             ->get()
-    //             ->map(function ($opportunity) {
-    //                 // Ajouter l'URL du fichier de présentation si elle existe
-    //                 if ($opportunity->fichier_presentation) {
-    //                     $opportunity->fichier_presentation_url = asset('storage/' . $opportunity->fichier_presentation);
-    //                 }
-    //                 return $opportunity;
-    //             });
-            
-    //         return response()->json($pendingOpportunities);
-    //     } catch (\Exception $e) {
-    //         return response()->json(['message' => 'Erreur lors de la récupération des opportunités d\'affaires en attente', 'error' => $e->getMessage()], 500);
-    //     }
-    // }
-    
-    /**
      * Approuver une opportunité d'affaire
      *
      * @param  int  $id
@@ -105,7 +74,7 @@ class BusinessOpportunityValidationController extends Controller
             'type' => 'opportunites_affaires',
             'id' => $opportuniteAffaire->id,
             'titre' => $opportuniteAffaire->titre,
-            'statut' => 'approuve',
+            'statut' => 'approuvé',
             'message' => 'Votre opportunité d\'affaire a été approuvée et est maintenant visible par tous les utilisateurs.'
         ]));
         
@@ -226,163 +195,6 @@ class BusinessOpportunityValidationController extends Controller
             'opportuniteAffaire' => $opportuniteAffaire
         ]);
     }
-    
-    /**
-     * Récupérer les opportunités d'affaires en attente de validation
-     *
-     * @return \Illuminate\Http\Response
-     */
-    // public function pending()
-    // {
-    //     // Vérifier si l'utilisateur est un administrateur
-    //     if (!Auth::user()->is_admin) {
-    //         return response()->json(['message' => 'Non autorisé'], 403);
-    //     }
-        
-    //     try {
-    //         $pendingOpportunities = OpportuniteAffaire::with('user')
-    //             ->where('statut', 'en_attente')
-    //             ->orderBy('created_at', 'desc')
-    //             ->get()
-    //             ->map(function ($opportunity) {
-    //                 // Ajouter l'URL du fichier de présentation si elle existe
-    //                 if ($opportunity->fichier_presentation) {
-    //                     $opportunity->fichier_presentation_url = asset('storage/' . $opportunity->fichier_presentation);
-    //                 }
-    //                 return $opportunity;
-    //             });
-            
-    //         return response()->json($pendingOpportunities);
-    //     } catch (\Exception $e) {
-    //         return response()->json(['message' => 'Erreur lors de la récupération des opportunités d\'affaires en attente', 'error' => $e->getMessage()], 500);
-    //     }
-    // }
-    
-    /**
-     * Valider une opportunité d'affaire
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $opportunity
-     * @return \Illuminate\Http\Response
-     */
-    // public function validate(Request $request, $opportunity)
-    // {
-    //     // Vérifier si l'utilisateur est un administrateur
-    //     if (!Auth::user()->is_admin) {
-    //         return response()->json(['message' => 'Non autorisé'], 403);
-    //     }
-        
-    //     $request->validate([
-    //         'action' => 'required|string|in:approve,reject',
-    //         'reason' => 'nullable|string|max:500',
-    //     ]);
-        
-    //     $opportuniteAffaire = OpportuniteAffaire::findOrFail($opportunity);
-        
-    //     if ($request->action === 'approve') {
-    //         // Approuver l'opportunité d'affaire
-    //         $opportuniteAffaire->statut = 'approuve';
-    //         $opportuniteAffaire->save();
-            
-    //         // Notifier l'utilisateur
-    //         $user = User::find($opportuniteAffaire->user_id);
-    //         $user->notify(new PublicationStatusChanged([
-    //             'type' => 'opportunites_affaires',
-    //             'id' => $opportuniteAffaire->id,
-    //             'titre' => $opportuniteAffaire->titre,
-    //             'statut' => 'approuve',
-    //             'message' => 'Votre opportunité d\'affaire a été approuvée et est maintenant visible par tous les utilisateurs.'
-    //         ]));
-            
-    //         return response()->json([
-    //             'message' => 'Opportunité d\'affaire approuvée avec succès',
-    //             'opportuniteAffaire' => $opportuniteAffaire
-    //         ]);
-    //     } else {
-    //         // Rejeter l'opportunité d'affaire
-    //         $opportuniteAffaire->statut = 'rejete';
-    //         $opportuniteAffaire->raison_rejet = $request->reason;
-    //         $opportuniteAffaire->save();
-            
-    //         // Notifier l'utilisateur
-    //         $user = User::find($opportuniteAffaire->user_id);
-    //         $user->notify(new PublicationStatusChanged([
-    //             'type' => 'opportunites_affaires',
-    //             'id' => $opportuniteAffaire->id,
-    //             'titre' => $opportuniteAffaire->titre,
-    //             'statut' => 'rejete',
-    //             'message' => 'Votre opportunité d\'affaire a été rejetée.',
-    //             'raison' => $request->reason
-    //         ]));
-            
-    //         return response()->json([
-    //             'message' => 'Opportunité d\'affaire rejetée avec succès',
-    //             'opportuniteAffaire' => $opportuniteAffaire
-    //         ]);
-    //     }
-    // }
-    
-    /**
-     * Récupérer les opportunités d'affaires approuvées
-     *
-     * @return \Illuminate\Http\Response
-     */
-    // public function approved()
-    // {
-    //     // Vérifier si l'utilisateur est un administrateur
-    //     if (!Auth::user()->is_admin) {
-    //         return response()->json(['message' => 'Non autorisé'], 403);
-    //     }
-        
-    //     try {
-    //         $approvedOpportunities = OpportuniteAffaire::with('user')
-    //             ->where('statut', 'approuve')
-    //             ->orderBy('created_at', 'desc')
-    //             ->get()
-    //             ->map(function ($opportunity) {
-    //                 // Ajouter l'URL du fichier de présentation si elle existe
-    //                 if ($opportunity->fichier_presentation) {
-    //                     $opportunity->fichier_presentation_url = asset('storage/' . $opportunity->fichier_presentation);
-    //                 }
-    //                 return $opportunity;
-    //             });
-            
-    //         return response()->json($approvedOpportunities);
-    //     } catch (\Exception $e) {
-    //         return response()->json(['message' => 'Erreur lors de la récupération des opportunités d\'affaires approuvées', 'error' => $e->getMessage()], 500);
-    //     }
-    // }
-    
-    /**
-     * Récupérer les opportunités d'affaires rejetées
-     *
-     * @return \Illuminate\Http\Response
-     */
-    // public function rejected()
-    // {
-    //     // Vérifier si l'utilisateur est un administrateur
-    //     if (!Auth::user()->is_admin) {
-    //         return response()->json(['message' => 'Non autorisé'], 403);
-    //     }
-        
-    //     try {
-    //         $rejectedOpportunities = OpportuniteAffaire::with('user')
-    //             ->where('statut', 'rejete')
-    //             ->orderBy('created_at', 'desc')
-    //             ->get()
-    //             ->map(function ($opportunity) {
-    //                 // Ajouter l'URL du fichier de présentation si elle existe
-    //                 if ($opportunity->fichier_presentation) {
-    //                     $opportunity->fichier_presentation_url = asset('storage/' . $opportunity->fichier_presentation);
-    //                 }
-    //                 return $opportunity;
-    //             });
-            
-    //         return response()->json($rejectedOpportunities);
-    //     } catch (\Exception $e) {
-    //         return response()->json(['message' => 'Erreur lors de la récupération des opportunités d\'affaires rejetées', 'error' => $e->getMessage()], 500);
-    //     }
-    // }
     
     /**
      * Supprimer une opportunité d'affaires

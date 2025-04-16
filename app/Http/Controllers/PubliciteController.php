@@ -194,7 +194,8 @@ class PubliciteController extends Controller
                 $admin->notify(new \App\Notifications\PublicationSubmitted([
                     'type' => 'publicite',
                     'id' => $publicite->id,
-                    'titre' => "Publicité, titre: " . ($publicite->titre ?? 'Non défini') . ", en attente d'approbation",
+                    'titre' => "Publicité, titre: " . $publicite->titre,
+                    'message' => 'est en attente d\'approbation.',
                     'user_id' => $user->id,
                     'user_name' => $user->name
                 ]));
@@ -249,6 +250,8 @@ class PubliciteController extends Controller
     public function update(Request $request, $id)
     {
         $data = $request->all();
+
+        \Log::info($data);
         
         // Traitement du champ conditions_livraison
         if (isset($data['conditions_livraison'])) {
@@ -258,10 +261,16 @@ class PubliciteController extends Controller
                 } else {
                     try {
                         $decoded = json_decode($data['conditions_livraison'], true);
+                        
                         if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                             $data['conditions_livraison'] = $decoded;
                         } else {
-                            $data['conditions_livraison'] = [];
+                            // Si ce n'est pas un JSON valide, essayer de traiter comme une chaîne simple
+                            if (!empty(trim($data['conditions_livraison']))) {
+                                $data['conditions_livraison'] = [$data['conditions_livraison']];
+                            } else {
+                                $data['conditions_livraison'] = [];
+                            }
                         }
                     } catch (\Exception $e) {
                         $data['conditions_livraison'] = [];

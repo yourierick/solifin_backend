@@ -159,7 +159,8 @@ class OffreEmploiController extends Controller
             $admin->notify(new \App\Notifications\PublicationSubmitted([
                 'type' => 'offre_emploi',
                 'id' => $offre->id,
-                'titre' => "Offre d'emploi, référence : " . ($offre->reference ?? 'Non définie') . " est en attente d'approbation",
+                'titre' => "Offre d'emploi, référence : " . $offre->reference,
+                'message' => 'est en attente d\'approbation.',
                 'user_id' => $user->id,
                 'user_name' => $user->name
             ]));

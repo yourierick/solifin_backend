@@ -162,7 +162,8 @@ class OpportuniteAffaireController extends Controller
             $admin->notify(new \App\Notifications\PublicationSubmitted([
                 'type' => 'opportunite_affaire',
                 'id' => $opportunite->id,
-                'titre' => "Opportunité d'affaire, Secteur: " . ($opportunite->secteur ?? 'Non défini') . ", en attente d'approbation",
+                'titre' => "Opportunité d'affaire, Secteur: " . $opportunite->secteur,
+                'message' => 'est en attente d\'approbation.',
                 'user_id' => $user->id,
                 'user_name' => $user->name
             ]));
@@ -741,8 +742,4 @@ class OpportuniteAffaireController extends Controller
             'post' => $post
         ]);
     }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 8714da400630a70f16f1f41c93882b66ad73dba1
