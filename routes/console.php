@@ -21,3 +21,8 @@ Schedule::command('transaction-fees:update')
     ->daily()
     ->at('01:00')
     ->description('Met à jour les frais de transaction depuis l\'API externe tous les jours à 1h du matin');
+
+Schedule::command('exchange:update')
+    ->daily()
+    ->at('01:30')
+    ->description('Met à jour les taux de change des devises depuis une API externe tous les jours à 1h30 du matin');

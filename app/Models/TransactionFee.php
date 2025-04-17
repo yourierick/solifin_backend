@@ -19,13 +19,11 @@ class TransactionFee extends Model
      */
     protected $fillable = [
         'payment_method',
-        'provider',
+        'payment_type',
         'transfer_fee_percentage',
         'withdrawal_fee_percentage',
-        'purchase_fee_percentage',
-        'min_fee_amount',
-        'max_fee_amount',
-        'currency',
+        'fee_fixed',
+        'fee_cap',
         'is_active',
         'last_api_update',
         'api_response'
@@ -39,9 +37,8 @@ class TransactionFee extends Model
     protected $casts = [
         'transfer_fee_percentage' => 'float',
         'withdrawal_fee_percentage' => 'float',
-        'purchase_fee_percentage' => 'float',
-        'min_fee_amount' => 'float',
-        'max_fee_amount' => 'float',
+        'fee_fixed' => 'float',
+        'fee_cap' => 'float',
         'is_active' => 'boolean',
         'last_api_update' => 'datetime',
         'api_response' => 'array'
@@ -51,14 +48,19 @@ class TransactionFee extends Model
      * Récupère les frais de transaction pour un moyen de paiement spécifique.
      *
      * @param string $paymentMethod
-     * @param string|null $countryCode
+     * @param string|null $paymentType
      * @return TransactionFee|null
      */
-    public static function getFeesForPaymentMethod(string $paymentMethod)
+    public static function getFeesForPaymentMethod(string $paymentMethod, string $paymentType = null)
     {
-        return self::where('payment_method', $paymentMethod)
-                  ->where('is_active', true)
-                  ->first();
+        $query = self::where('payment_method', $paymentMethod)
+                    ->where('is_active', true);
+        
+        if ($paymentType) {
+            $query->where('payment_type', $paymentType);
+        }
+        
+        return $query->first();
     }
 
     /**
@@ -72,13 +74,13 @@ class TransactionFee extends Model
         $fee = $amount * ($this->transfer_fee_percentage / 100);
         
         // Appliquer le montant minimum des frais
-        if ($fee < $this->min_fee_amount) {
-            $fee = $this->min_fee_amount;
+        if ($fee < $this->fee_fixed) {
+            $fee = $this->fee_fixed;
         }
         
         // Appliquer le montant maximum des frais si défini
-        if ($this->max_fee_amount && $fee > $this->max_fee_amount) {
-            $fee = $this->max_fee_amount;
+        if ($this->fee_cap && $fee > $this->fee_cap) {
+            $fee = $this->fee_cap;
         }
         
         return round($fee, 2);
@@ -95,13 +97,13 @@ class TransactionFee extends Model
         $fee = $amount * ($this->withdrawal_fee_percentage / 100);
         
         // Appliquer le montant minimum des frais
-        if ($fee < $this->min_fee_amount) {
-            $fee = $this->min_fee_amount;
+        if ($fee < $this->fee_fixed) {
+            $fee = $this->fee_fixed;
         }
         
         // Appliquer le montant maximum des frais si défini
-        if ($this->max_fee_amount && $fee > $this->max_fee_amount) {
-            $fee = $this->max_fee_amount;
+        if ($this->fee_cap && $fee > $this->fee_cap) {
+            $fee = $this->fee_cap;
         }
         
         return round($fee, 2);
@@ -113,22 +115,22 @@ class TransactionFee extends Model
      * @param float $amount
      * @return float
      */
-    public function calculatePurchaseFee(float $amount): float
-    {
-        $fee = $amount * ($this->purchase_fee_percentage / 100);
+    // public function calculatePurchaseFee(float $amount): float
+    // {
+    //     $fee = $amount * ($this->purchase_fee_percentage / 100);
         
-        // Appliquer le montant minimum des frais
-        if ($fee < $this->min_fee_amount) {
-            $fee = $this->min_fee_amount;
-        }
+    //     // Appliquer le montant minimum des frais
+    //     if ($fee < $this->min_fee_amount) {
+    //         $fee = $this->min_fee_amount;
+    //     }
         
-        // Appliquer le montant maximum des frais si défini
-        if ($this->max_fee_amount && $fee > $this->max_fee_amount) {
-            $fee = $this->max_fee_amount;
-        }
+    //     // Appliquer le montant maximum des frais si défini
+    //     if ($this->max_fee_amount && $fee > $this->max_fee_amount) {
+    //         $fee = $this->max_fee_amount;
+    //     }
         
-        return round($fee, 2);
-    }
+    //     return round($fee, 2);
+    // }
 
     /**
      * Met à jour les frais de transaction depuis l'API externe.
@@ -168,16 +170,13 @@ class TransactionFee extends Model
                 self::updateOrCreate(
                     [
                         'payment_method' => $method['name'],
-                        'provider' => $method['provider'],
-                        'country_code' => $method['country_code'] ?? null
+                        'payment_type' => $method['type'],
                     ],
                     [
                         'transfer_fee_percentage' => $method['transfer_fee_percentage'] ?? 0,
                         'withdrawal_fee_percentage' => $method['withdrawal_fee_percentage'] ?? 0,
-                        'purchase_fee_percentage' => $method['purchase_fee_percentage'] ?? 0,
-                        'min_fee_amount' => $method['min_fee_amount'] ?? 0,
-                        'max_fee_amount' => $method['max_fee_amount'] ?? null,
-                        'currency' => $method['currency'] ?? 'CDF',
+                        'fee_fixed' => $method['fee_fixed'] ?? 0,
+                        'fee_cap' => $method['fee_cap'] ?? null,
                         'is_active' => $method['is_active'] ?? true,
                         'last_api_update' => now(),
                         'api_response' => $method

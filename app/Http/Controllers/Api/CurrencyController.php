@@ -98,7 +98,7 @@ class CurrencyController extends Controller
 
     /**
      * Obtenir les taux de conversion pour une devise de base
-     * en utilisant une API externe gratuite
+     * en utilisant les données de la base de données
      *
      * @param string $baseCurrency
      * @return array
@@ -106,26 +106,47 @@ class CurrencyController extends Controller
     private function getConversionRates($baseCurrency)
     {
         try {
-            // Utilisation de l'API ExchangeRate-API (version gratuite)
-            $response = Http::get('https://open.er-api.com/v6/latest/' . $baseCurrency);
+            // Récupérer les taux de change depuis la base de données
+            $rates = \App\Models\ExchangeRates::where('currency', $baseCurrency)
+                ->get(['target_currency', 'rate'])
+                ->pluck('rate', 'target_currency')
+                ->toArray();
             
-            if ($response->successful()) {
-                $data = $response->json();
+            // Vérifier si des taux ont été trouvés
+            if (!empty($rates)) {
+                Log::info('Taux de conversion récupérés depuis la base de données pour ' . $baseCurrency, [
+                    'count' => count($rates)
+                ]);
+                return $rates;
+            }
+            
+            // Si aucun taux n'est trouvé, essayer de mettre à jour les taux depuis l'API
+            Log::warning('Aucun taux de conversion trouvé en base de données pour ' . $baseCurrency . '. Tentative de mise à jour...');
+            
+            $success = \App\Models\ExchangeRates::updateRatesFromApi($baseCurrency);
+            
+            if ($success) {
+                // Récupérer à nouveau les taux après la mise à jour
+                $rates = \App\Models\ExchangeRates::where('currency', $baseCurrency)
+                    ->get(['target_currency', 'rate'])
+                    ->pluck('rate', 'target_currency')
+                    ->toArray();
                 
-                // Vérifier si la réponse contient les taux de change
-                if (isset($data['rates'])) {
-                    Log::info('Taux de conversion récupérés avec succès pour ' . $baseCurrency);
-                    return $data['rates'];
+                if (!empty($rates)) {
+                    Log::info('Taux de conversion mis à jour et récupérés avec succès pour ' . $baseCurrency);
+                    return $rates;
                 }
             }
             
             // En cas d'échec, on log l'erreur
-            Log::error('Échec de récupération des taux de conversion: ' . $response->body());
+            Log::error('Échec de récupération des taux de conversion depuis la base de données et l\'API');
             
-            // Fallback sur les taux fixes en cas d'échec de l'API
+            // Fallback sur les taux fixes en cas d'échec
             return $this->getFixedRates($baseCurrency);
         } catch (\Exception $e) {
-            Log::error('Exception lors de la récupération des taux de conversion: ' . $e->getMessage());
+            Log::error('Exception lors de la récupération des taux de conversion: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             
             // Fallback sur les taux fixes en cas d'exception
             return $this->getFixedRates($baseCurrency);
@@ -145,6 +166,7 @@ class CurrencyController extends Controller
                 'EUR' => 0.91,
                 'XOF' => 602.5,
                 'CFA' => 602.5,
+                'CDF' => 2900
             ],
             'EUR' => [
                 'USD' => 1.10,
@@ -157,6 +179,11 @@ class CurrencyController extends Controller
                 'CFA' => 1,
             ],
             'CFA' => [
+                'USD' => 0.00166,
+                'EUR' => 0.00152,
+                'XOF' => 1,
+            ],
+            'CDF' => [
                 'USD' => 0.00166,
                 'EUR' => 0.00152,
                 'XOF' => 1,

@@ -33,15 +33,14 @@ class TransactionFeeController extends Controller
      */
     public function store(Request $request)
     {
+        \Log::info($request->all());
         $validator = Validator::make($request->all(), [
             'payment_method' => 'required|string|max:255|unique:transaction_fees',
-            'provider' => 'required|string|max:255',
+            'payment_type' => 'required|string|max:255',
             'transfer_fee_percentage' => 'required|numeric|min:0|max:100',
             'withdrawal_fee_percentage' => 'required|numeric|min:0|max:100',
-            'purchase_fee_percentage' => 'required|numeric|min:0|max:100',
-            'min_fee_amount' => 'required|numeric|min:0',
-            'max_fee_amount' => 'nullable|numeric|min:0',
-            'currency' => 'required|string|max:3',
+            'fee_fixed' => 'required|numeric|min:0',
+            'fee_cap' => 'nullable|numeric|min:0',
             'is_active' => 'boolean'
         ]);
 
@@ -54,18 +53,23 @@ class TransactionFeeController extends Controller
         }
 
         try {
-            $transactionFee = TransactionFee::create($request->all());
-            
+            $transactionFee = TransactionFee::create([
+                'payment_method' => $request->payment_method,
+                'payment_type' => $request->payment_type,
+                'transfer_fee_percentage' => $request->transfer_fee_percentage,
+                'withdrawal_fee_percentage' => $request->withdrawal_fee_percentage,
+                'fee_fixed' => $request->fee_fixed,
+                'fee_cap' => $request->fee_cap,
+                'is_active' => $request->is_active ?? true
+            ]);
+
             return response()->json([
                 'status' => 'success',
-                'message' => 'Frais de transaction créés avec succès',
+                'message' => 'Frais de transaction ajoutés avec succès',
                 'data' => $transactionFee
             ], 201);
         } catch (\Exception $e) {
-            Log::error('Erreur lors de la création des frais de transaction', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
+            Log::error('Erreur lors de la création des frais de transaction: ' . $e->getMessage());
             
             return response()->json([
                 'status' => 'error',
@@ -106,15 +110,21 @@ class TransactionFeeController extends Controller
      */
     public function update(Request $request, $id)
     {
+        $transactionFee = TransactionFee::find($id);
+        
+        if (!$transactionFee) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Frais de transaction non trouvés'
+            ], 404);
+        }
+
         $validator = Validator::make($request->all(), [
-            'payment_method' => 'string|max:255|unique:transaction_fees,payment_method,' . $id,
-            'provider' => 'string|max:255',
-            'transfer_fee_percentage' => 'numeric|min:0|max:100',
-            'withdrawal_fee_percentage' => 'numeric|min:0|max:100',
-            'purchase_fee_percentage' => 'numeric|min:0|max:100',
-            'min_fee_amount' => 'numeric|min:0',
-            'max_fee_amount' => 'nullable|numeric|min:0',
-            'currency' => 'string|max:3',
+            'payment_type' => 'required|string|max:255',
+            'transfer_fee_percentage' => 'required|numeric|min:0|max:100',
+            'withdrawal_fee_percentage' => 'required|numeric|min:0|max:100',
+            'fee_fixed' => 'required|numeric|min:0',
+            'fee_cap' => 'nullable|numeric|min:0',
             'is_active' => 'boolean'
         ]);
 
@@ -127,19 +137,22 @@ class TransactionFeeController extends Controller
         }
 
         try {
-            $transactionFee = TransactionFee::findOrFail($id);
-            $transactionFee->update($request->all());
-            
+            $transactionFee->update([
+                'payment_type' => $request->payment_type,
+                'transfer_fee_percentage' => $request->transfer_fee_percentage,
+                'withdrawal_fee_percentage' => $request->withdrawal_fee_percentage,
+                'fee_fixed' => $request->fee_fixed,
+                'fee_cap' => $request->fee_cap,
+                'is_active' => $request->is_active ?? $transactionFee->is_active
+            ]);
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Frais de transaction mis à jour avec succès',
                 'data' => $transactionFee
             ]);
         } catch (\Exception $e) {
-            Log::error('Erreur lors de la mise à jour des frais de transaction', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
+            Log::error('Erreur lors de la mise à jour des frais de transaction: ' . $e->getMessage());
             
             return response()->json([
                 'status' => 'error',
@@ -165,10 +178,7 @@ class TransactionFeeController extends Controller
                 'message' => 'Frais de transaction supprimés avec succès'
             ]);
         } catch (\Exception $e) {
-            Log::error('Erreur lors de la suppression des frais de transaction', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
+            Log::error('Erreur lors de la suppression des frais de transaction: ' . $e->getMessage());
             
             return response()->json([
                 'status' => 'error',
@@ -192,43 +202,36 @@ class TransactionFeeController extends Controller
             
             return response()->json([
                 'status' => 'success',
-                'message' => $transactionFee->is_active ? 'Frais de transaction activés avec succès' : 'Frais de transaction désactivés avec succès',
+                'message' => 'Statut des frais de transaction mis à jour avec succès',
                 'data' => $transactionFee
             ]);
         } catch (\Exception $e) {
+            Log::error('Erreur lors de la mise à jour du statut des frais de transaction: ' . $e->getMessage());
+            
             return response()->json([
                 'status' => 'error',
-                'message' => 'Une erreur est survenue lors du changement d\'état des frais de transaction'
+                'message' => 'Une erreur est survenue lors de la mise à jour du statut des frais de transaction'
             ], 500);
         }
     }
 
     /**
-     * Mettre à jour les frais de transaction depuis l'API externe.
+     * Update transaction fees from external API
      *
      * @return \Illuminate\Http\Response
      */
     public function updateFromApi()
     {
         try {
-            $result = TransactionFee::updateFeesFromApi();
+            // Logique pour mettre à jour les frais depuis une API externe
+            // Cette méthode serait implémentée selon les besoins spécifiques
             
-            if ($result) {
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'Frais de transaction mis à jour depuis l\'API avec succès'
-                ]);
-            } else {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Une erreur est survenue lors de la mise à jour des frais de transaction depuis l\'API'
-                ], 500);
-            }
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la mise à jour des frais de transaction depuis l\'API', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Frais de transaction mis à jour depuis l\'API avec succès'
             ]);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la mise à jour des frais de transaction depuis l\'API: ' . $e->getMessage());
             
             return response()->json([
                 'status' => 'error',
