@@ -82,7 +82,7 @@ class TransactionFeeApiController extends Controller
             ], 404);
         }
         
-        $fee = $transactionFee->calculateTransferFee((float) $amount);
+        $fee = $transactionFee->calculateTransferFee((float) $amount, $currency);
         
     
         return response()->json([

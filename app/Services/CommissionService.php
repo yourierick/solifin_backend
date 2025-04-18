@@ -98,6 +98,7 @@ class CommissionService
             return true;
         } catch (\Exception $e) {
             // En cas d'erreur, marquer la commission comme échouée
+            \Log::error($e->getMessage());
             $commission->update([
                 'status' => 'failed',
                 'error_message' => $e->getMessage(),

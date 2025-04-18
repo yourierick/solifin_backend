@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Models\ExchangeRates;
 use Carbon\Carbon;
 
 class TransactionFee extends Model
@@ -69,8 +70,13 @@ class TransactionFee extends Model
      * @param float $amount
      * @return float
      */
-    public function calculateTransferFee(float $amount): float
+    public function calculateTransferFee(float $amount, $currency): float
     {
+        //Convertir le montant fixe des frais dans la dévise de l'utilisateur lorsque ce n'est pas le USD
+        if ($currency !== "USD") {
+            $this->fee_fixed = $this->convertFromUSD($this->fee_fixed, $currency);
+        }
+
         $fee = $amount * ($this->transfer_fee_percentage / 100);
         
         // Appliquer le montant minimum des frais
@@ -192,5 +198,31 @@ class TransactionFee extends Model
             ]);
             return false;
         }
+    }
+
+
+    /**
+     * Convertit un montant depuis la devise USD vers une autre devise.
+     *
+     * @param float $amount
+     * @param string $currency
+     * @return float
+     */
+    private function convertFromUSD($amount, $currency)
+    {
+        if ($currency === 'USD') {
+            return $amount;
+        }
+        
+        try {
+            // Récupérer le taux de conversion depuis la BD
+            $exchangeRate = ExchangeRates::where('currency', "USD")->where("target_currency", $currency)->first();
+            if ($exchangeRate) {
+                return $amount * $exchangeRate->rate;
+            }
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de l\'appel à l\'API de conversion: ' . $e->getMessage());
+        }
+        return $amount;
     }
 }

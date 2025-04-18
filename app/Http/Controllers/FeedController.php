@@ -501,6 +501,10 @@ class FeedController extends Controller
         $pages = Page::whereHas('abonnes', function($query) use ($userId) {
             $query->where('user_id', $userId);
         })->with('user')->get();
+
+        foreach ($pages as $page) {
+            $page->user->profile_picture = asset('storage/' . $page->user->picture);
+        }
         
         return response()->json([
             'pages' => $pages
@@ -525,6 +529,10 @@ class FeedController extends Controller
             ->with('user')
             ->take(10)
             ->get();
+
+        foreach($pages as $page) {
+            $page->user->profile_picture = asset('storage/' . $page->user->picture);
+        }
         
         return response()->json([
             'pages' => $pages

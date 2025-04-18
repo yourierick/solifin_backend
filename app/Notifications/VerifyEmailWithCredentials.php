@@ -6,10 +6,13 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use App\Models\Pack;
 
 class VerifyEmailWithCredentials extends VerifyEmailFrench
 {
+    use Queueable;
+
     protected $userData;
     protected $packId;
     protected $durationMonths;

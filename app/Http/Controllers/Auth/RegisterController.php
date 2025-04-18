@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use App\Services\CommissionService;
+use App\Models\ExchangeRates;
 use App\Notifications\VerifyEmailWithCredentials;
 
 class RegisterController extends Controller
@@ -24,7 +25,6 @@ class RegisterController extends Controller
     public function register(Request $request, $pack_id)
     {
         try {
-            //\Log::info('Register request: ' . json_encode($request->all()));
             // Valider les données
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
@@ -36,6 +36,7 @@ class RegisterController extends Controller
                 'sponsor_code' => 'required|exists:user_packs,referral_code',
                 'duration_months' => 'required|integer|min:1',
                 'payment_method' => 'required|string',
+                'payment_type' => 'required|string',
                 'payment_details' => 'required|array',
                 'gender' => 'required|string',
                 'country' => 'required|string',
@@ -43,7 +44,8 @@ class RegisterController extends Controller
                 'city' => 'required|string',
                 'currency' => 'nullable|string|max:3',
                 'amount' => 'required|numeric',
-                'fees' => 'nullable|numeric',
+                'fees' => 'required|numeric',
+                'phoneNumber' => 'nullable|string',
             ]);
 
             DB::beginTransaction();
@@ -51,32 +53,60 @@ class RegisterController extends Controller
             $pack = Pack::find($pack_id);
 
             // Récupérer les informations de paiement
-            $paymentMethod = $validated['payment_method'];
-            $paymentAmount = $validated['amount'];
+            $paymentMethod = $validated['payment_method']; // Méthode spécifique (visa, m-pesa, etc.)
+            $paymentType = $validated['payment_type']; // Type général (credit-card, mobile-money, etc.)
+            $paymentAmount = $validated['amount']; // Montant sans les frais
             $paymentCurrency = $validated['currency'] ?? 'USD';
-            $transactionFees = $validated['fees'] ?? 0;
+            $paymentDetails = $validated['payment_details'] ?? [];
+            
+            // Normaliser le nom de la méthode de paiement si c'est wallet
+            if ($paymentMethod === 'wallet') {
+                $paymentMethod = 'solifin-wallet';
+            }
+
+            // Recalculer les frais de transaction côté backend pour éviter les manipulations côté frontend
+            // Récupérer les frais de transaction pour cette méthode de paiement spécifique
+            $transactionFeeModel = \App\Models\TransactionFee::where('payment_method', $paymentMethod)
+                                                           ->where('is_active', true);
+            
+            $transactionFee = $transactionFeeModel->first();
+            
+            // Calculer les frais de transaction
+            $transactionFees = 0;
+            if ($transactionFee) {
+                $transactionFees = $transactionFee->calculateTransferFee((float) $paymentAmount, $paymentCurrency);
+                \Log::info('Frais de transaction recalculés: ' . $transactionFees . ' pour la méthode ' . $paymentMethod);
+            } else {
+                \Log::warning('Aucun frais de transaction trouvé pour la méthode ' . $paymentMethod);
+            }
+            
+            // Montant total incluant les frais
+            $totalAmount = $paymentAmount + $transactionFees;
             
             // Si la devise n'est pas en USD, convertir le montant en USD (devise de base)
-            $amountInUSD = $paymentAmount;
+            $amountInUSD = $totalAmount;
             if ($paymentCurrency !== 'USD') {
                 try {
                     // Appel à un service de conversion de devise
-                    $amountInUSD = $this->convertToUSD($paymentAmount, $paymentCurrency);
+                    $amountInUSD = $this->convertToUSD($totalAmount, $paymentCurrency);
                     $amountInUSD = round($amountInUSD, 0);
                 } catch (\Exception $e) {
                     \Log::error('Erreur lors de la conversion de devise: ' . $e->getMessage());
                     // Fallback: utiliser un taux de conversion fixe ou une estimation
-                    $amountInUSD = $this->estimateUSDAmount($paymentAmount, $paymentCurrency);
+                    $amountInUSD = $this->estimateUSDAmount($totalAmount, $paymentCurrency);
                 }
             }
             
             // Soustraire les frais de transaction s'ils sont inclus dans le montant
             $feesInUSD = $this->convertToUSD($transactionFees, $paymentCurrency);
-            $netAmountInUSD = $amountInUSD - $feesInUSD;
+            $netAmountInUSD = round($amountInUSD - $feesInUSD, 0);
             
             // Vérifier que le montant net est suffisant pour couvrir le coût du pack
             $packCost = $pack->price * $validated['duration_months'];
-            if ($amountInUSD < $packCost) {
+
+            \Log::info($netAmountInUSD);
+            \Log::info($packCost);
+            if ($netAmountInUSD < $packCost) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Le montant payé est insuffisant pour couvrir le coût du pack'
@@ -87,10 +117,12 @@ class RegisterController extends Controller
 
             // Enregistrer le paiement dans le système
             $walletsystem = WalletSystem::first();
-            $walletsystem->addFunds($netAmountInUSD, "sales", "completed", [
+            $walletsystem->addFunds($validated['payment_method'] !== "solifin-wallet" ? $netAmountInUSD : $amountInUSD, "sales", "completed", [
                 "user" => $validated["name"], 
                 "pack_id" => $pack->id, 
                 "payment_details" => $validated['payment_details'],
+                "payment_method" => $paymentMethod,
+                "payment_type" => $paymentType,
                 "pack_name" => $pack->name, 
                 "sponsor_code" => $validated['sponsor_code'], 
                 "duration" => $validated['duration_months'],
@@ -98,7 +130,6 @@ class RegisterController extends Controller
                 "original_currency" => $paymentCurrency,
                 "transaction_fees" => $transactionFees,
                 "converted_amount" => $netAmountInUSD,
-                "payment_method" => $paymentMethod
             ]);
 
             // Stocker le mot de passe en clair temporairement pour l'email
@@ -258,14 +289,10 @@ class RegisterController extends Controller
         }
         
         try {
-            // Essayer d'utiliser l'API de conversion de devise
-            $response = \Http::get('https://api.exchangerate-api.com/v4/latest/USD');
-            if ($response->successful()) {
-                $data = $response->json();
-                if (isset($data['rates'][$currency])) {
-                    $rate = 1 / $data['rates'][$currency];
-                    return $amount * $rate;
-                }
+            // Récupérer le taux de conversion depuis la BD
+            $exchangeRate = ExchangeRates::where('currency', $currency)->where("target_currency", "USD")->first();
+            if ($exchangeRate) {
+                return $amount * $exchangeRate->rate;
             }
         } catch (\Exception $e) {
             \Log::error('Erreur lors de l\'appel à l\'API de conversion: ' . $e->getMessage());

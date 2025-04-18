@@ -14,6 +14,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Models\TransactionFee;
+use App\Models\ExchangeRates;
 use App\Services\CommissionService;
 
 class PackController extends Controller
@@ -60,58 +62,126 @@ class PackController extends Controller
     //renouvellement d'un pack
     public function renewPack(Request $request, Pack $pack)
     {
+        \Log::info(['Renewing pack: ' . $pack->name, $request->all()]);
         try {
             $validated = $request->validate([
                 'payment_method' => 'required|string',
-                'payment_details'=> ['requiredif:payment_method, credit-card|mobile-money', 'array'],
+                'payment_details'=> ['requiredif:payment_method,credit-card|mobile-money', 'array'],
+                'payment_type' => 'required|string',
                 'duration_months' => 'required|integer|min:1',
-                'amount' => 'required|numeric|min:0'
+                'amount' => 'required|numeric|min:0',
+                'currency' => 'required|string',
+                'fees' => 'required|numeric|min:0',
             ]);
+
+            $paymentMethod = $validated['payment_method']; // Méthode spécifique (visa, m-pesa, etc.)
+            $paymentType = $validated['payment_type']; // Type général (credit-card, mobile-money, etc.)
+            $paymentAmount = $validated['amount']; // Montant sans les frais
+            $paymentCurrency = $validated['currency'] ?? 'USD';
+
+            $transactionFeeModel = TransactionFee::where('payment_method', $paymentMethod)
+                ->where('is_active', true);
+            
+            $transactionFee = $transactionFeeModel->first();
+            
+            // Calculer les frais de transaction
+            $transactionFees = 0;
+            if ($transactionFee) {
+                $transactionFees = $transactionFee->calculateTransferFee((float) $paymentAmount, $paymentCurrency);
+                //\Log::info('Frais de transaction recalculés: ' . $transactionFees . ' pour la méthode ' . $paymentMethod);
+            } else {
+                //\Log::warning('Aucun frais de transaction trouvé pour la méthode ' . $paymentMethod);
+            }
+            
+            // Montant total incluant les frais
+            $totalAmount = $paymentAmount + $transactionFees;
+            
+            // Si la devise n'est pas en USD, convertir le montant en USD (devise de base)
+            $amountInUSD = $totalAmount;
+            if ($paymentCurrency !== 'USD') {
+                try {
+                    // Appel à un service de conversion de devise
+                    $amountInUSD = $this->convertToUSD($totalAmount, $paymentCurrency);
+                    $amountInUSD = round($amountInUSD, 0);
+                } catch (\Exception $e) {
+                    \Log::error('Erreur lors de la conversion de devise: ' . $e->getMessage());
+                    // Fallback: utiliser un taux de conversion fixe ou une estimation
+                    $amountInUSD = $this->estimateUSDAmount($totalAmount, $paymentCurrency);
+                }
+            }
+            
+            // Soustraire les frais de transaction s'ils sont inclus dans le montant
+            $feesInUSD = $this->convertToUSD($transactionFees, $paymentCurrency);
+            $netAmountInUSD = round($amountInUSD - $feesInUSD, 0);
+            
+            // Vérifier que le montant net est suffisant pour couvrir le coût du pack
+            $packCost = $pack->price * $validated['duration_months'];
+            if ($netAmountInUSD < $packCost) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Le montant payé est insuffisant pour couvrir le coût du pack'
+                ], 400);
+            }
 
             // Vérifier si l'utilisateur a déjà ce pack
             $userPack = UserPack::where('user_id', $request->user()->id)
                 ->where('pack_id', $pack->id)
                 ->first();
-            $user = $userPack->user;
-            $expectedAmount = $pack->price * $validated['duration_months'];
-            if ($expectedAmount !== floatval($validated['amount'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Le montant calculé ne correspond pas au prix du pack'
-                ], 400);
-            }
-
+                
             if (!$userPack) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Pack non trouvé'
                 ], 404);
             }
-
+            
+            $user = $userPack->user;
             DB::beginTransaction();
 
-            if ($request->payment_method == 'wallet') {
+            if ($validated['payment_method'] === 'solifin-wallet') {
                 $userWallet = $userPack->user->wallet;
+                
+                // Vérifier si le solde est suffisant
+                if ($userWallet->balance < $amountInUSD) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Solde insuffisant dans votre wallet'
+                    ], 400);
+                }
 
-                $userWallet->withdrawFunds($validated['amount'], "transfer", "completed", ["pack_id"=>$pack->id, "pack_name"=>$pack->name, 
-                "duration"=>$validated['duration_months'], "payment_method"=>$validated['payment_method']]);
+                // Retirer les fonds du wallet
+                $userWallet->withdrawFunds($amountInUSD, "transfer", "completed", [
+                    "pack_id" => $pack->id, 
+                    "pack_name" => $pack->name, 
+                    "duration" => $validated['duration_months'], 
+                    "payment_method" => $validated['payment_method'],
+                    "payment_details" => $validated['payment_details'] ?? [],
+                    "currency" => $validated['currency'],
+                    "original_amount" => $validated['amount'],
+                    "payment_type" => $validated['payment_type'],
+                    "fees" => $feesInUSD
+                ]);
+            } else {
+                //implémenter le paiement API
             }
 
-            if ($request->payment_method == 'mobile-money') {
-                //TODO
-            }
-
-            if ($request->payment_method == 'credit-card') {
-                //TODO
-            }
-
-            // Ajouter le montant au wallet system
+            // Ajouter le montant au wallet system (sans les frais)
             $walletsystem = WalletSystem::first();
             if (!$walletsystem) {
                 $walletsystem = WalletSystem::create(['balance' => 0]);
             }
-            $walletsystem->addFunds($validated['amount'], "sales", "completed", ["user"=>$user->name, "pack_id"=>$pack->id, "pack_name"=>$pack->name, 
-                "duration"=>$validated['duration_months'], "payment_method"=>$validated['payment_method'], "payment_details"=>$validated['payment_details']]);
+            
+            $walletsystem->addFunds($validated['payment_method'] !== "solifin-wallet" ? $netAmountInUSD : $amountInUSD, "sales", "completed", [
+                "user" => $user->name, 
+                "pack_id" => $pack->id, 
+                "pack_name" => $pack->name, 
+                "duration" => $validated['duration_months'], 
+                "payment_method" => $validated['payment_method'], 
+                "payment_details" => $validated['payment_details'] ?? [],
+                "currency" => $validated['currency'],
+                "original_amount" => $validated['amount'],
+                "fees" => $feesInUSD
+            ]);
 
             // on met à jour la date d'expiration
             $userPack->expiry_date = now()->addMonths($validated['duration_months']);
@@ -119,7 +189,7 @@ class PackController extends Controller
             $userPack->save();
 
             // Distribuer les commissions
-            \Log::info('1Distributing commissions for user pack: ' . $validated['duration_months']);
+            \Log::info('Distributing commissions for user pack: ' . $validated['duration_months']);
             $this->processCommissions($userPack, $validated['duration_months']);
 
             DB::commit();
@@ -131,9 +201,10 @@ class PackController extends Controller
         } catch (\Exception $e) {
             DB::rollback();
             \Log::error('Erreur lors du renouvellement du pack: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors du renouvellement du pack'
+                'message' => 'Erreur lors du renouvellement du pack: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -143,35 +214,82 @@ class PackController extends Controller
     {
         try {
             $validated = $request->validate([
-                'pack_id' => 'required|exists:packs,id',
+                'packId' => 'required|exists:packs,id',
                 'payment_method' => 'required|string',
-                'payment_details'=> ['requiredif:payment_method, credit-card|mobile-money', 'array'],
-                'sponsor_code' => 'nullable|exists:user_packs,referral_code',
-                'duration_months' => 'required|integer|min:1',
-                'amount' => 'required|numeric|min:0'
+                'payment_type' => 'required|string',
+                'payment_details'=> ['requiredif:payment_type, credit-card|mobile-money', 'array'],
+                'phoneNumber' => 'requiredif:payment_type, mobile-money|string',
+                'referralCode' => 'nullable|exists:user_packs,referral_code', //code du sponsor
+                'months' => 'required|integer|min:1',
+                'amount' => 'required|numeric|min:0',
+                'fees' => 'required|numeric|min:0',
+                'currency' => 'required|string',
             ]);
 
             $user = $request->user();
-            $pack = Pack::findOrFail($request->pack_id);
+            $pack = Pack::findOrFail($request->packId);
+
+            $paymentMethod = $validated['payment_method']; // Méthode spécifique (visa, m-pesa, etc.)
+            $paymentType = $validated['payment_type']; // Type général (credit-card, mobile-money, etc.)
+            $paymentAmount = $validated['amount']; // Montant sans les frais
+            $paymentCurrency = $validated['currency'] ?? 'USD';
+
+            $transactionFeeModel = TransactionFee::where('payment_method', $paymentMethod)
+                                                           ->where('is_active', true);
             
-            // Vérifier si le montant est correct
-            $expectedAmount = $pack->price * $request->duration_months;
-            if ($expectedAmount !== floatval($request->amount)) {
+            $transactionFee = $transactionFeeModel->first();
+            
+            // Calculer les frais de transaction
+            $transactionFees = 0;
+            if ($transactionFee) {
+                $transactionFees = $transactionFee->calculateTransferFee((float) $paymentAmount, $paymentCurrency);
+                //\Log::info('Frais de transaction recalculés: ' . $transactionFees . ' pour la méthode ' . $paymentMethod);
+            } else {
+                //\Log::warning('Aucun frais de transaction trouvé pour la méthode ' . $paymentMethod);
+            }
+            
+            // Montant total incluant les frais
+            $totalAmount = $paymentAmount + $transactionFees;
+            
+            // Si la devise n'est pas en USD, convertir le montant en USD (devise de base)
+            $amountInUSD = $totalAmount;
+            if ($paymentCurrency !== 'USD') {
+                try {
+                    // Appel à un service de conversion de devise
+                    $amountInUSD = $this->convertToUSD($totalAmount, $paymentCurrency);
+                    $amountInUSD = round($amountInUSD, 0);
+                } catch (\Exception $e) {
+                    \Log::error('Erreur lors de la conversion de devise: ' . $e->getMessage());
+                    // Fallback: utiliser un taux de conversion fixe ou une estimation
+                    $amountInUSD = $this->estimateUSDAmount($totalAmount, $paymentCurrency);
+                }
+            }
+            
+            // Soustraire les frais de transaction s'ils sont inclus dans le montant
+            $feesInUSD = $this->convertToUSD($transactionFees, $paymentCurrency);
+            $netAmountInUSD = round($amountInUSD - $feesInUSD, 0);
+            
+            // Vérifier que le montant net est suffisant pour couvrir le coût du pack
+            $packCost = $pack->price * $validated['months'];
+            if ($netAmountInUSD < $packCost) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Le montant calculé ne correspond pas au prix du pack'
+                    'message' => 'Le montant payé est insuffisant pour couvrir le coût du pack'
                 ], 400);
             }
 
             DB::beginTransaction();
             
             try {
-                if ($request->payment_method === 'wallet') {
+                if ($request->payment_method === 'solifin-wallet') {
                     // Vérifier le solde du wallet
                     $userWallet = Wallet::where('user_id', $user->id)->first();
                     
-                    if (!$userWallet || $userWallet->balance < $request->amount) {
-                        throw new \Exception('Solde insuffisant dans votre wallet');
+                    if (!$userWallet || $userWallet->balance < $amountInUSD) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Solde insuffisant dans votre wallet'
+                        ], 400);
                     }
 
                     // Vérifier si l'utilisateur a déjà ce pack
@@ -184,12 +302,12 @@ class PackController extends Controller
                         $newExpiryDate = $existingUserPack->expiry_date > now() 
                             ? Carbon::parse($existingUserPack->expiry_date) 
                             : now();
-                        $existingUserPack->expiry_date = $newExpiryDate->addMonths($request->duration_months);
+                        $existingUserPack->expiry_date = $newExpiryDate->addMonths($request->months);
                         $existingUserPack->save();
                     } else {
 
                         //Si un code parrain est fourni, lier l'utilisateur au parrain
-                        $sponsorPack = UserPack::where('referral_code', $request->referral_code)->first();
+                        $sponsorPack = UserPack::where('referral_code', $request->referralCode)->first();
 
                         // Générer un code de parrainage unique
                         $referralLetter = substr($pack->name, 0, 1);
@@ -209,10 +327,10 @@ class PackController extends Controller
                         $referralLink = $frontendUrl . "/register?referral_code=" . $referralCode;
 
                         // Attacher le pack à l'utilisateur
-                        $userpack = $user->packs()->attach($pack->id, [
+                        $user->packs()->attach($pack->id, [
                             'status' => 'active',
                             'purchase_date' => now(),
-                            'expiry_date' => now()->addMonths($validated['duration_months']),
+                            'expiry_date' => now()->addMonths($validated['months']),
                             'is_admin_pack' => false,
                             'payment_status' => 'completed',
                             'referral_prefix' => 'SPR',
@@ -221,36 +339,131 @@ class PackController extends Controller
                             'referral_number' => $referralNumber,
                             'referral_code' => $referralCode,
                             'link_referral' => $referralLink,
-                            'sponsor_id' => $sponsorPack->user_id,
+                            'sponsor_id' => $sponsorPack->user_id ?? null,
                         ]);
+                        
+                        // Récupérer l'instance UserPack créée
+                        $userpack = UserPack::where('user_id', $user->id)
+                                          ->where('pack_id', $pack->id)
+                                          ->where('referral_code', $referralCode)
+                                          ->first();
                     }
 
                     // Déduire le montant du wallet de l'utilisateur
-                    $userWallet->balance -= $request->amount;
-                    $userWallet->withdrawFunds($request->amount, "transfer", "completed", ["pack_id"=>$pack->id, "pack_name"=>$pack->name, 
-                    "duration"=>$request->duration_months, "payment_method"=>$request->payment_method]);
+                    $userWallet->withdrawFunds($amountInUSD, "transfer", "completed", ["pack_id"=>$pack->id, "pack_name"=>$pack->name, 
+                    "duration"=>$request->months, "payment_method"=>$request->payment_method, "payment_type"=>$request->payment_type, 
+                    "payment_details"=>$request->payment_details, "referral_code"=>$request->referralCode, "currency"=>$request->currency
+                    ]);
 
                     // Ajouter le montant au wallet system
                     $walletsystem = WalletSystem::first();
                     if (!$walletsystem) {
                         $walletsystem = WalletSystem::create(['balance' => 0]);
                     }
-                    $walletsystem->addFunds($request->amount, "sales", "completed", ["user"=>$user->name, "pack_id"=>$pack->id, "pack_name"=>$pack->name, 
-                        "duration"=>$request->duration_months]);
+                    $walletsystem->addFunds($amountInUSD, "sales", "completed", [
+                        "user" => $validated["name"], 
+                        "pack_id" => $pack->id, 
+                        "payment_details" => $validated['payment_details'],
+                        "payment_method" => $paymentMethod,
+                        "payment_type" => $paymentType,
+                        "pack_name" => $pack->name, 
+                        "sponsor_code" => $validated['sponsor_code'], 
+                        "duration" => $validated['duration_months'],
+                        "original_amount" => $paymentAmount,
+                        "original_currency" => $paymentCurrency,
+                        "transaction_fees" => $validated['fees'],
+                        "converted_amount" => $netAmountInUSD,
+                    ]);
 
                 } else {
-                    // Pour les autres méthodes de paiement (à implémenter)
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Cette méthode de paiement n\'est pas encore disponible'
-                    ], 400);
+                    // Vérifier si l'utilisateur a déjà ce pack
+                    $existingUserPack = UserPack::where('user_id', $user->id)
+                        ->where('pack_id', $pack->id)
+                        ->first();
+
+                    if ($existingUserPack) {
+                        //Implémenter le paiement API
+
+
+                        // Prolonger la période de validité
+                        $newExpiryDate = $existingUserPack->expiry_date > now() 
+                            ? Carbon::parse($existingUserPack->expiry_date) 
+                            : now();
+                        $existingUserPack->expiry_date = $newExpiryDate->addMonths($request->months);
+                        $existingUserPack->save();
+                    } else {
+                        //Implémenter le paiement API
+
+
+                        //Si un code parrain est fourni, lier l'utilisateur au parrain
+                        $sponsorPack = UserPack::where('referral_code', $request->referralCode)->first();
+
+                        // Générer un code de parrainage unique
+                        $referralLetter = substr($pack->name, 0, 1);
+                        $referralNumber = str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                        $referralCode = 'SPR' . $referralLetter . $referralNumber;
+
+                        // Vérifier que le code est unique
+                        while (UserPack::where('referral_code', $referralCode)->exists()) {
+                            $referralNumber = str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                            $referralCode = 'SPR' . $referralLetter . $referralNumber;
+                        }
+
+                        // Récupérer l'URL du frontend depuis le fichier .env
+                        $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+
+                        // Créer le lien de parrainage en utilisant l'URL du frontend
+                        $referralLink = $frontendUrl . "/register?referral_code=" . $referralCode;
+
+                        // Attacher le pack à l'utilisateur
+                        $user->packs()->attach($pack->id, [
+                            'status' => 'active',
+                            'purchase_date' => now(),
+                            'expiry_date' => now()->addMonths($validated['months']),
+                            'is_admin_pack' => false,
+                            'payment_status' => 'completed',
+                            'referral_prefix' => 'SPR',
+                            'referral_pack_name' => $pack->name,
+                            'referral_letter' => $referralLetter,
+                            'referral_number' => $referralNumber,
+                            'referral_code' => $referralCode,
+                            'link_referral' => $referralLink,
+                            'sponsor_id' => $sponsorPack->user_id ?? null,
+                        ]);
+                        
+                        // Récupérer l'instance UserPack créée
+                        $userpack = UserPack::where('user_id', $user->id)
+                                          ->where('pack_id', $pack->id)
+                                          ->where('referral_code', $referralCode)
+                                          ->first();
+                    }
+
+                    // Ajouter le montant au wallet system
+                    $walletsystem = WalletSystem::first();
+                    if (!$walletsystem) {
+                        $walletsystem = WalletSystem::create(['balance' => 0]);
+                    }
+                    $walletsystem->addFunds($netAmountInUSD, "sales", "completed", [
+                        "user" => $validated["name"], 
+                        "pack_id" => $pack->id, 
+                        "payment_details" => $validated['payment_details'],
+                        "payment_method" => $paymentMethod,
+                        "payment_type" => $paymentType,
+                        "pack_name" => $pack->name, 
+                        "sponsor_code" => $validated['sponsor_code'], 
+                        "duration" => $validated['duration_months'],
+                        "original_amount" => $paymentAmount,
+                        "original_currency" => $paymentCurrency,
+                        "transaction_fees" => $transactionFees,
+                        "converted_amount" => $netAmountInUSD,
+                    ]);
                 }
 
                 // Distribuer les commissions
                 if ($existingUserPack) {
-                    $this->processCommissions($existingUserPack, $validated['duration_months']);
+                    $this->processCommissions($existingUserPack, $validated['months']);
                 }else {
-                    $this->processCommissions($userpack, $validated['duration_months']);
+                    $this->processCommissions($userpack, $validated['months']);
                 }
 
                 DB::commit();
@@ -268,7 +481,7 @@ class PackController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => 'une erreur est survenue lors du traitement'
             ], 400);
         }
     }
@@ -674,5 +887,64 @@ class PackController extends Controller
                 'message' => 'Erreur lors de la récupération des statistiques détaillées'
             ], 500);
         }
+    }
+
+
+    //-------------------------------------FONCTION DE CONVERSION----------------------------------//
+    private function estimateUSDAmount($amount, $currency)
+    {
+        // Taux de conversion approximatifs (à mettre à jour régulièrement)
+        $rates = [
+            'EUR' => 1.09,
+            'GBP' => 1.27,
+            'CAD' => 0.73,
+            'AUD' => 0.66,
+            'JPY' => 0.0067,
+            'CHF' => 1.12,
+            'CNY' => 0.14,
+            'INR' => 0.012,
+            'BRL' => 0.19,
+            'ZAR' => 0.054,
+            'NGN' => 0.00065,
+            'GHS' => 0.071,
+            'XOF' => 0.0017,
+            'XAF' => 0.0017,
+            'CDF' => 0.0017,
+        ];
+        
+        if (isset($rates[$currency])) {
+            return $amount * $rates[$currency];
+        }
+        
+        // Si la devise n'est pas dans la liste, utiliser un taux par défaut
+        //\Log::warning("Devise non reconnue pour la conversion: $currency. Utilisation du taux par défaut.");
+        return $amount;
+    }
+    
+    /**
+     * Convertit un montant d'une devise en USD
+     * 
+     * @param float $amount Montant à convertir
+     * @param string $currency Devise d'origine
+     * @return float Montant en USD
+     */
+    private function convertToUSD($amount, $currency)
+    {
+        if ($currency === 'USD') {
+            return $amount;
+        }
+        
+        try {
+            // Récupérer le taux de conversion depuis la BD
+            $exchangeRate = ExchangeRates::where('currency', $currency)->where("target_currency", "USD")->first();
+            if ($exchangeRate) {
+                return $amount * $exchangeRate->rate;
+            }
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de l\'appel à l\'API de conversion: ' . $e->getMessage());
+        }
+        
+        // Si l'API échoue, utiliser l'estimation
+        return $this->estimateUSDAmount($amount, $currency);
     }
 } 
