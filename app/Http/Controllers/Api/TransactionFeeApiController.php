@@ -136,6 +136,7 @@ class TransactionFeeApiController extends Controller
             'status' => 'success',
             'data' => [
                 'amount' => (float) $amount,
+                'percentage' => $transactionFee->withdrawal_fee_percentage,
                 'fee' => $fee,
                 'total' => (float) $amount - $fee, // Pour un retrait, les frais sont déduits du montant
                 'payment_method' => $transactionFee->payment_method,

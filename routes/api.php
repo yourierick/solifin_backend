@@ -124,7 +124,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Routes pour les demandes de retrait
     Route::post('/withdrawal/send-otp', [WithdrawalController::class, 'sendOtp']);
-    Route::post('/withdrawal/request', [WithdrawalController::class, 'request']);
+    Route::post('/withdrawal/request/{walletId}', [WithdrawalController::class, 'request']);
     Route::post('/withdrawal/request/{id}/cancel', [WithdrawalController::class, 'cancel']);
 
     // Routes pour la gestion des pages et publications

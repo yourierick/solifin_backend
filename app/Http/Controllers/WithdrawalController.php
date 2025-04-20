@@ -34,33 +34,43 @@ class WithdrawalController extends Controller
 
     protected function formatPhoneNumber($phone)
     {
+        // Le traitement de l'indicatif téléphonique est maintenant géré côté frontend
+        // Cette fonction ne fait plus que vérifier la validité du numéro
+        
         // Supprimer tous les caractères non numériques
-        $phone = preg_replace('/[^0-9]/', '', $phone);
+        $phone = preg_replace('/[^0-9+]/', '', $phone);
         
-        // S'assurer que le numéro commence par le code pays
-        if (!str_starts_with($phone, '243')) {
-            // Si le numéro commence par 0, le remplacer par 243
-            if (str_starts_with($phone, '0')) {
-                $phone = '243' . substr($phone, 1);
-            } else {
-                $phone = '243' . $phone;
-            }
+        // Vérifier que le numéro n'est pas vide
+        if (empty($phone)) {
+            throw new \InvalidArgumentException("Le numéro de téléphone ne peut pas être vide");
         }
         
-        // Vérifier la longueur après formatage
-        if (strlen($phone) !== 12) {
-            throw new \InvalidArgumentException('Le numéro de téléphone doit contenir 9 chiffres après le code pays (243)');
-        }
-        
+        // Retourner le numéro tel quel (déjà formaté par le frontend)
         return $phone;
     }
+
 
     public function sendOtp(Request $request)
     {
         try {
             $validator = Validator::make($request->all(), [
-                'phone_number' => 'required_if:payment_method,orange-money,airtel-money,m-pesa,afrimoney',
-                'payment_method' => 'required|string|in:mobile-money,card'
+                'phone_number' => 'required_if:payment_type,mobile-money',
+                'payment_method' => 'required|string',
+                'payment_type' => 'required|string|in:mobile-money,bank-transfer,money-transfer,credit-card',
+                'amount' => 'required|numeric|min:0',
+                'currency' => 'required|string',
+                'withdrawal_fee' => 'required|numeric',
+                'referral_commission' => 'required|numeric',
+                'total_amount' => 'required|numeric',
+                'fee_percentage' => 'required|numeric',
+                'account_name' => 'required_if:payment_type,credit-card',
+                'account_number' => 'required_if:payment_type,bank-transfer',
+                'bank_name' => 'required_if:payment_type,bank-transfer',
+                'id_type' => 'required_if:payment_type,money-transfer',
+                'id_number' => 'required_if:payment_type,money-transfer',
+                'full_name' => 'required_if:payment_type,money-transfer',
+                'recipient_country' => 'required_if:payment_type,money-transfer',
+                'recipient_city' => 'required_if:payment_type,money-transfer',
             ]);
 
             if ($validator->fails()) {
@@ -72,54 +82,37 @@ class WithdrawalController extends Controller
             }
 
             $user = $request->user();
-            Log::info('Tentative d\'envoi OTP pour l\'utilisateur', [
-                'user_id' => $user->id,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'payment_method' => $request->payment_method
-            ]);
             
-            // Pour Mobile Money, vérifier que le numéro de téléphone est fourni et valide
-            if ($request->payment_method === 'mobile-money') {
-                if (!$request->phone_number) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Le numéro de téléphone est requis pour le paiement Mobile Money'
-                    ], 422);
-                }
-
-                try {
-                    $this->formatPhoneNumber($request->phone_number);
-                } catch (\InvalidArgumentException $e) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => $e->getMessage()
-                    ], 422);
-                }
+            // Vérifier le format du numéro de téléphone si présent
+            if ($request->has('phone_number') && !empty($request->phone_number)) {
+                $this->formatPhoneNumber($request->phone_number);
             }
 
-            // Pour la carte, vérifier que l'utilisateur a un numéro enregistré et valide
-            if ($request->payment_method === 'card') {
-                if (!$user->phone) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Veuillez d\'abord enregistrer votre numéro de téléphone dans votre profil'
-                    ], 400);
-                }
-
-                try {
-                    $this->formatPhoneNumber($user->phone);
-                } catch (\InvalidArgumentException $e) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Le numéro de téléphone dans votre profil est invalide. ' . $e->getMessage()
-                    ], 400);
-                }
+            //Vérifier que l'utilisateur a un numéro enregistré et valide
+            if (!$user->phone) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Veuillez d\'abord enregistrer votre numéro de téléphone dans votre profil'
+                ], 400);
             }
 
+            $formatted_phone = $this->formatPhoneNumber($user->phone);
+
+            // Générer un OTP
             $otp = rand(100000, 999999);
-            session(['withdrawal_otp' => $otp]);
-            Log::info('OTP généré', ['otp' => $otp]);
+            
+            // Stocker l'OTP dans la base de données au lieu de la session
+            DB::table('withdrawal_otps')->updateOrInsert(
+                ['user_id' => $user->id],
+                [
+                    'otp' => $otp,
+                    'expires_at' => now()->addMinutes(10),
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]
+            );
+            
+            Log::info('OTP généré', ['otp' => $otp, 'user_id' => $user->id]);
 
             // Envoyer l'OTP par email
             try {
@@ -129,16 +122,12 @@ class WithdrawalController extends Controller
             }
 
             // Envoyer l'OTP par SMS
-            try {    
-                $formattedPhone = $this->formatPhoneNumber($user->phone);
-                
-                $message = $request->payment_method === 'mobile-money'
-                    ? "Votre code OTP pour le retrait est : $otp pour votre demande de retrait SOLIFIN au numéro: " . $request->phone_number
-                    : "Votre code OTP pour le retrait par carte bancaire est : $otp";
+            try {
+                $message = "Votre code OTP pour le retrait est : $otp pour votre demande de retrait SOLIFIN au numéro: " . json_encode($request->payment_details);
                 
                 $response = $this->vonageClient->sms()->send(
                     new \Vonage\SMS\Message\SMS(
-                        $formattedPhone,
+                        $formatted_phone,
                         config('services.vonage.sms_from', 'SOLIFIN'),
                         $message
                     )
@@ -169,22 +158,47 @@ class WithdrawalController extends Controller
         }
     }
 
-    public function request(Request $request)
+    public function request(Request $request, $walletId)
     {
+        \Log::info('Tentative de retrait - Début', [
+            'request' => $request->all(),
+            'wallet_id' => $walletId,
+            'method' => $request->method(),
+            'url' => $request->url(),
+            'headers' => $request->header()
+        ]);
         try {
             $validator = Validator::make($request->all(), [
-                'wallet_id' => 'required|exists:wallets,id',
+                'phone_number' => 'required_if:payment_type,mobile-money',
                 'payment_method' => 'required|string',
+                'payment_type' => 'required|string|in:mobile-money,bank-transfer,money-transfer,credit-card',
                 'amount' => 'required|numeric|min:0',
-                'phone_number' => 'required_if:payment_method,orange-money,airtel-money,m-pesa,afrimoney',
+                'currency' => 'required|string',
                 'otp' => 'required',
-                'card_details' => 'required_if:payment_method,card|array',
-                'card_details.number' => 'required_if:payment_method,card',
-                'card_details.expiry' => 'required_if:payment_method,card',
-                'card_details.holder_name' => 'required_if:payment_method,card'
+                'withdrawal_fee' => 'required|numeric',
+                'referral_commission' => 'required|numeric',
+                'total_amount' => 'required|numeric',
+                'fee_percentage' => 'required|numeric',
+                'account_name' => 'required_if:payment_type,credit-card',
+                'account_number' => 'required_if:payment_type,bank-transfer',
+                'bank_name' => 'required_if:payment_type,bank-transfer',
+                'id_type' => 'required_if:payment_type,money-transfer',
+                'id_number' => 'required_if:payment_type,money-transfer',
+                'full_name' => 'required_if:payment_type,money-transfer',
+                'recipient_country' => 'required_if:payment_type,money-transfer',
+                'recipient_city' => 'required_if:payment_type,money-transfer',
+            ]);
+
+            \Log::info('Validation terminée', [
+                'passes' => !$validator->fails(),
+                'errors_count' => count($validator->errors()),
+                'errors' => $validator->errors()->toArray()
             ]);
 
             if ($validator->fails()) {
+                \Log::error('Validation error', [
+                    'errors' => $validator->errors()->toArray()
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation error',
@@ -192,32 +206,31 @@ class WithdrawalController extends Controller
                 ], 422);
             }
 
-            // Vérifier le format du numéro de téléphone pour Mobile Money
-            if ($request->payment_method === 'mobile-money') {
-                try {
-                    $this->formatPhoneNumber($request->phone_number);
-                } catch (\InvalidArgumentException $e) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => $e->getMessage()
-                    ], 422);
-                }
+            // Vérifier le format du numéro de téléphone si présent
+            if ($request->has('phone_number') && !empty($request->phone_number)) {
+                $this->formatPhoneNumber($request->phone_number);
             }
 
             // Vérifier l'OTP
-            $storedOtp = session('withdrawal_otp');
-            if (!$storedOtp || $storedOtp != $request->otp) {
+            $storedOtp = DB::table('withdrawal_otps')->where('user_id', $request->user()->id)->first();
+            \Log::info('Vérification OTP', [
+                'stored_otp' => $storedOtp->otp,
+                'request_otp' => $request->otp,
+                'match' => ($storedOtp->otp == $request->otp),
+            ]);
+            
+            if (!$storedOtp || $storedOtp->otp != $request->otp || $storedOtp->expires_at < now()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Code OTP invalide'
+                    'message' => 'Code OTP invalide ou expiré. Veuillez demander un nouveau code OTP.'
                 ], 422);
             }
 
             // Récupérer le portefeuille
-            $wallet = Wallet::findOrFail($request->wallet_id);
+            $wallet = Wallet::findOrFail($walletId);
             
             // Vérifier le solde
-            if ($wallet->balance < $request->amount) {
+            if ($wallet->balance < $request->total_amount) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Vous n\'avez pas suffisamment d\'argent dans votre portefeuille (' . $wallet->balance . ' ' . $wallet->currency . ' vs ' . $request->amount . ' ' . $wallet->currency . ')'
@@ -228,12 +241,18 @@ class WithdrawalController extends Controller
 
             $withdrawalRequest = WithdrawalRequest::create([
                 'user_id' => auth()->id(),
-                'amount' => $request->amount,
+                'amount' => $request->total_amount,
                 'status' => 'pending',
                 'payment_method' => $request->payment_method,
-                'payment_details' => $request->payment_method === 'orange-money' || $request->payment_method === 'airtel-money' || $request->payment_method === 'm-pesa' || $request->payment_method === 'afrimoney'
-                    ? ['phone_number' => $this->formatPhoneNumber($request->phone_number)]
-                    : $request->card_details, "link" => "/admin/withdrawal-requests"
+                'payment_details' => [
+                    "montant_a_retirer" => $request->amount,
+                    "fee_percentage" => $request->fee_percentage,
+                    "frais_de_retrait" => $request->withdrawal_fee,
+                    "frais_de_commission" => $request->referral_commission,
+                    "montant_total_a_payer" => $request->total_amount,
+                    "payment_details" => $request->payment_details, 
+                    "link" => "/admin/withdrawal-requests"
+                ]
             ]);
 
             $user = $request->user();
@@ -247,10 +266,13 @@ class WithdrawalController extends Controller
                 'metadata' => [
                     'withdrawal_request_id' => $withdrawalRequest->id,
                     'payment_method' => $request->payment_method,
-                    'payment_details' => $request->payment_method === 'orange-money' || $request->payment_method === 'airtel-money' || $request->payment_method === 'm-pesa' || $request->payment_method === 'afrimoney'
-                        ? ['phone_number' => $this->formatPhoneNumber($request->phone_number)]
-                        : $request->card_details,
-                    'status' => 'en attente',
+                    'montant_a_retirer' => $request->amount,
+                    'fee_percentage' => $request->fee_percentage,
+                    'frais_de_retrait' => $request->withdrawal_fee,
+                    'frais_de_commission' => $request->referral_commission,
+                    'montant_total_a_payer' => $request->total_amount,
+                    'payment_details' => $request->payment_details,
+                    'status' => 'pending',
                 ]
             ]);
 
@@ -265,7 +287,6 @@ class WithdrawalController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Demande de retrait créée avec succès',
-                'withdrawal_request' => $withdrawalRequest
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
