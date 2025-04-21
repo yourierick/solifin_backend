@@ -106,7 +106,7 @@ class WithdrawalController extends Controller
                 ['user_id' => $user->id],
                 [
                     'otp' => $otp,
-                    'expires_at' => now()->addMinutes(10),
+                    'expires_at' => now()->addMinutes(1),
                     'created_at' => now(),
                     'updated_at' => now()
                 ]
@@ -246,6 +246,7 @@ class WithdrawalController extends Controller
                 'payment_method' => $request->payment_method,
                 'payment_details' => [
                     "montant_a_retirer" => $request->amount,
+                    "devise" => $request->currency,
                     "fee_percentage" => $request->fee_percentage,
                     "frais_de_retrait" => $request->withdrawal_fee,
                     "frais_de_commission" => $request->referral_commission,
@@ -261,10 +262,11 @@ class WithdrawalController extends Controller
             // Créer une transaction dans le wallet
             $wallet->transactions()->create([
                 'type' => 'withdrawal',
-                'amount' => $request->amount,
+                'amount' => $request->total_amount,
                 'status' => 'pending',
                 'metadata' => [
                     'withdrawal_request_id' => $withdrawalRequest->id,
+                    'currency' => $request->currency,
                     'payment_method' => $request->payment_method,
                     'montant_a_retirer' => $request->amount,
                     'fee_percentage' => $request->fee_percentage,
@@ -313,6 +315,7 @@ class WithdrawalController extends Controller
                         'id' => $request->id,
                         'user_id' => $request->user_id,
                         'user_name' => $request->user->name,
+                        'user' => $request->user,
                         'wallet_balance' => $request->user->wallet->balance,
                         'amount' => $request->amount,
                         'status' => $request->status,
@@ -464,7 +467,7 @@ class WithdrawalController extends Controller
                 ->first();
 
             if ($transaction) {
-                $transaction->status = 'completed';
+                $transaction->status = 'approved';
                 $transaction->save();
             }
 

@@ -26,8 +26,10 @@ class WithdrawalRequestCreated extends Notification implements ShouldQueue
     public function toArray($notifiable): array
     {
         return [
-            'message' => 'Nouvelle demande de retrait de ' . number_format($this->withdrawalRequest->amount, 2) . ' €',
+            'Titre' => 'Demande de retrait',
+            'message' => 'Nouvelle demande de retrait de ' . number_format($this->withdrawalRequest->amount, 2) . ' $',
             'withdrawal_request_id' => $this->withdrawalRequest->id,
+            'link' => '/admin/withdrawal-requests',
             'user_name' => $this->withdrawalRequest->user->name,
             'amount' => $this->withdrawalRequest->amount,
             'created_at' => $this->withdrawalRequest->created_at->format('d/m/Y H:i'),
