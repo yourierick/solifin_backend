@@ -208,6 +208,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Route pour vérifier le statut du pack de publication
     Route::get('/user-pack/status', [App\Http\Controllers\UserPackController::class, 'checkPackStatus']);
+
+    // Routes pour les points bonus des utilisateurs
+    Route::prefix('user/bonus-points')->group(function () {
+        Route::get('/', [App\Http\Controllers\UserBonusPointController::class, 'getUserPoints']);
+        Route::get('/history', [App\Http\Controllers\UserBonusPointController::class, 'getPointsHistory']);
+        Route::post('/convert', [App\Http\Controllers\UserBonusPointController::class, 'convertPoints']);
+    });
+
+    //Transfert de fonds entre wallets
+    Route::post('/funds-transfer', [App\Http\Controllers\User\WalletUserController::class, 'funds_transfer']);
 });
 
 // Routes admin
@@ -259,16 +269,13 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/packs/{packId}/bonus-rates', [PackController::class, 'storeBonusRate']);
     Route::put('/bonus-rates/{id}', [PackController::class, 'updateBonusRate']);
     Route::delete('/bonus-rates/{id}', [PackController::class, 'deleteBonusRate']);
-
+    
     // Routes pour la gestion des wallets
     Route::get('/wallets/data', [WalletController::class, 'getWalletData']);
     Route::post('/admin/wallets/withdraw', [WalletController::class, 'withdraw']);
 
     // Routes pour les publicités
     Route::get('/advertisements', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'index']);
-    // Route::get('/advertisements/pending', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'getPendingAds']);
-    // Route::get('/advertisements/approved', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'getApprovedAds']);
-    // Route::get('/advertisements/rejected', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'getRejectedAds']);
     Route::post('/advertisements/{id}/approve', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'approve']);
     Route::post('/advertisements/{id}/reject', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'reject']);
     Route::patch('/advertisements/{id}/status', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'updateStatus']);
@@ -277,9 +284,6 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     
     // Routes pour les offres d'emploi
     Route::get('/job-offers', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'index']);
-    // Route::get('/job-offers/pending', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'pending']);
-    // Route::get('/job-offers/approved', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'approved']);
-    // Route::get('/job-offers/rejected', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'rejected']);
     Route::post('/job-offers/{id}/approve', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'approve']);
     Route::post('/job-offers/{id}/reject', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'reject']);
     Route::patch('/job-offers/{id}/status', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'updateStatus']);
@@ -288,19 +292,6 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     
     // Routes pour les opportunités d'affaires
     Route::get('/business-opportunities', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'index']);
-    
-    // Routes pour la gestion des frais de transaction
-    // Route::prefix('transaction-fees')->group(function () {
-    //     Route::get('/', [App\Http\Controllers\Admin\TransactionFeeController::class, 'index']);
-    //     Route::post('/', [App\Http\Controllers\Admin\TransactionFeeController::class, 'store']);
-    //     Route::get('/{id}', [App\Http\Controllers\Admin\TransactionFeeController::class, 'show']);
-    //     Route::put('/{id}', [App\Http\Controllers\Admin\TransactionFeeController::class, 'update']);
-    //     Route::delete('/{id}', [App\Http\Controllers\Admin\TransactionFeeController::class, 'destroy']);
-    //     Route::post('/update-from-api', [App\Http\Controllers\Admin\TransactionFeeController::class, 'updateFromApi']);
-    // });
-    // Route::get('/business-opportunities/pending', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'pending']);
-    // Route::get('/business-opportunities/approved', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'approved']);
-    // Route::get('/business-opportunities/rejected', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'rejected']);
     Route::post('/business-opportunities/{id}/approve', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'approve']);
     Route::post('/business-opportunities/{id}/reject', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'reject']);
     Route::patch('/business-opportunities/{id}/status', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateStatus']);

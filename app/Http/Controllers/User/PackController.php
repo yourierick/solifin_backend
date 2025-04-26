@@ -17,6 +17,7 @@ use Carbon\Carbon;
 use App\Models\TransactionFee;
 use App\Models\ExchangeRates;
 use App\Services\CommissionService;
+use App\Models\UserBonusPoint;
 
 class PackController extends Controller
 {
@@ -149,8 +150,8 @@ class PackController extends Controller
                     ], 400);
                 }
 
-                // Retirer les fonds du wallet
-                $userWallet->withdrawFunds($amountInUSD, "transfer", "completed", [
+                // Déduire les fonds du wallet
+                $userWallet->withdrawFunds($amountInUSD, "sales", "completed", [
                     "pack_id" => $pack->id, 
                     "pack_name" => $pack->name, 
                     "duration" => $validated['duration_months'], 
@@ -243,9 +244,9 @@ class PackController extends Controller
             $transactionFees = 0;
             if ($transactionFee) {
                 $transactionFees = $transactionFee->calculateTransferFee((float) $paymentAmount, $paymentCurrency);
-                //\Log::info('Frais de transaction recalculés: ' . $transactionFees . ' pour la méthode ' . $paymentMethod);
+                \Log::info('Frais de transaction recalculés: ' . $transactionFees . ' pour la méthode ' . $paymentMethod);
             } else {
-                //\Log::warning('Aucun frais de transaction trouvé pour la méthode ' . $paymentMethod);
+                \Log::warning('Aucun frais de transaction trouvé pour la méthode ' . $paymentMethod);
             }
             
             // Montant total incluant les frais
@@ -350,7 +351,7 @@ class PackController extends Controller
                     }
 
                     // Déduire le montant du wallet de l'utilisateur
-                    $userWallet->withdrawFunds($amountInUSD, "transfer", "completed", ["pack_id"=>$pack->id, "pack_name"=>$pack->name, 
+                    $userWallet->withdrawFunds($amountInUSD, "sales", "completed", ["pack_id"=>$pack->id, "pack_name"=>$pack->name, 
                     "duration"=>$request->months, "payment_method"=>$request->payment_method, "payment_type"=>$request->payment_type, 
                     "payment_details"=>$request->payment_details, "referral_code"=>$request->referralCode, "currency"=>$request->currency
                     ]);
@@ -854,6 +855,15 @@ class PackController extends Controller
                 ->values()
                 ->toArray();
 
+            $bonus = UserBonusPoint::where('user_id', $request->user()->id)
+                ->where('pack_id', $pack->id)
+                ->first();
+
+            $points_bonus = 0;
+            if ($bonus) {
+                $points_bonus = $bonus->points_disponibles + $bonus->points_utilises;
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -876,7 +886,8 @@ class PackController extends Controller
                         'total_commission' => $totalCommission,
                         'latest_payments' => $latestPayments
                     ],
-                    'all_referrals' => $allReferrals
+                    'all_referrals' => $allReferrals,
+                    'points_bonus' => $points_bonus,
                 ]
             ]);
         } catch (\Exception $e) {

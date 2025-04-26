@@ -343,7 +343,8 @@ class PackController extends Controller
         $request->validate([
             'frequence' => 'required|in:daily,weekly,monthly,yearly',
             'nombre_filleuls' => 'required|integer|min:1',
-            'taux_bonus' => 'required|numeric|min:0|max:100'
+            'points_attribues' => 'required|integer|min:1',
+            'valeur_point' => 'required|numeric|min:0.01',
         ]);
 
         $pack = Pack::findOrFail($packId);
@@ -352,7 +353,8 @@ class PackController extends Controller
             'pack_id' => $packId,
             'frequence' => $request->frequence,
             'nombre_filleuls' => $request->nombre_filleuls,
-            'taux_bonus' => $request->taux_bonus
+            'points_attribues' => $request->points_attribues,
+            'valeur_point' => $request->valeur_point,
         ]);
 
         return response()->json([
@@ -367,7 +369,8 @@ class PackController extends Controller
         $request->validate([
             'frequence' => 'required|in:daily,weekly,monthly,yearly',
             'nombre_filleuls' => 'required|integer|min:1',
-            'taux_bonus' => 'required|numeric|min:0|max:100'
+            'points_attribues' => 'required|integer|min:1',
+            'valeur_point' => 'required|numeric|min:0.01',
         ]);
 
         $bonusRate = BonusRates::findOrFail($id);
@@ -375,7 +378,8 @@ class PackController extends Controller
         $bonusRate->update([
             'frequence' => $request->frequence,
             'nombre_filleuls' => $request->nombre_filleuls,
-            'taux_bonus' => $request->taux_bonus
+            'points_attribues' => $request->points_attribues,
+            'valeur_point' => $request->valeur_point,
         ]);
 
         return response()->json([
