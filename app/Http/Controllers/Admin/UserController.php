@@ -317,4 +317,47 @@ class UserController extends BaseController
             ], 500);
         }
     }
+
+    /**
+     * Réinitialise le mot de passe d'un utilisateur
+     */
+    public function resetPassword($id, Request $request)
+    {
+        try {
+            $request->validate([
+                'new_password' => 'required|string|min:8',
+                'admin_password' => 'required|string',
+            ]);
+
+            // Vérifier le mot de passe de l'administrateur
+            $admin = auth()->user();
+            if (!Hash::check($request->admin_password, $admin->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mot de passe administrateur incorrect'
+                ], 401);
+            }
+
+            // Trouver l'utilisateur et réinitialiser son mot de passe
+            $user = User::findOrFail($id);
+            $user->password = Hash::make($request->new_password);
+            $user->save();
+
+            // Journaliser l'action
+            Log::info("Mot de passe réinitialisé pour l'utilisateur ID: {$id} par l'administrateur ID: {$admin->id}");
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Mot de passe réinitialisé avec succès'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Erreur dans UserController@resetPassword: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la réinitialisation du mot de passe',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -166,7 +166,7 @@ class WalletUserController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors du transfert',
-                'error' => $e->getMessage()
+                'error' => 'Erreur lors du transfert'
             ], 500);
         }
     }

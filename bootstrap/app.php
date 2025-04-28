@@ -6,6 +6,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use App\Providers\BladeServiceProvider;
 use Illuminate\Http\Request;
 use App\Http\Middleware\AdminMiddleware;
+use App\Http\Middleware\CheckCountryAccess;
 use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\RedirectIfAuthenticated;
 use Illuminate\Routing\Middleware\ValidateSignature;
@@ -49,6 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
             ValidatePostSize::class,
             TrimStrings::class,
             ConvertEmptyStringsToNull::class,
+            CheckCountryAccess::class,
         ]);
 
         // Groupe de middleware web
@@ -81,6 +83,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'throttle' => ThrottleRequests::class,
             'verified' => EnsureEmailIsVerified::class,
             'admin' => AdminMiddleware::class,
+            'country.access' => CheckCountryAccess::class,
         ]);
 
 

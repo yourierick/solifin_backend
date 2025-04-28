@@ -297,4 +297,13 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::patch('/business-opportunities/{id}/status', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateStatus']);
     Route::patch('/business-opportunities/{id}/etat', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateEtat']);
     Route::delete('/business-opportunities/{id}', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'destroy']);
+    Route::post('/users/{id}/reset-password', [App\Http\Controllers\Admin\UserController::class, 'resetPassword']);
+
+    Route::post('/wallet/funds-transfer', [App\Http\Controllers\Admin\WalletController::class, 'funds_transfer']);
+    
+    // Routes pour la gestion des pays autorisés
+    Route::get('/settings/countries', [App\Http\Controllers\Admin\CountrySettingsController::class, 'index']);
+    Route::post('/settings/countries', [App\Http\Controllers\Admin\CountrySettingsController::class, 'update']);
+    Route::put('/settings/countries/{countryCode}/toggle-status', [App\Http\Controllers\Admin\CountrySettingsController::class, 'toggleStatus']);
+    Route::post('/settings/countries/toggle-restriction', [App\Http\Controllers\Admin\CountrySettingsController::class, 'toggleGlobalRestriction']);
 });

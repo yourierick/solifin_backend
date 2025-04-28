@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Wallet;
 use App\Models\WalletSystem;
 use App\Models\WalletSystemTransaction;
+use App\Models\WalletTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use App\Models\User;
 
 class WalletController extends Controller
 {
@@ -31,7 +34,22 @@ class WalletController extends Controller
             ] : null;
 
             // Récupérer les transactions du wallet system
-            $transactions = WalletSystemTransaction::with('walletSystem')
+            $systemwallettransactions = WalletSystemTransaction::with('walletSystem')
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($transaction) {
+                    return [
+                        'id' => $transaction->id,
+                        'amount' => number_format($transaction->amount, 2) . ' $',
+                        'type' => $transaction->type,
+                        'status' => $transaction->status,
+                        'metadata' => $transaction->metadata,
+                        'created_at' => $transaction->created_at->format('d/m/Y H:i:s')
+                    ];
+                });
+
+            // Récupérer les transactions du wallet
+            $adminwallettransactions = WalletTransaction::with('wallet')->where('wallet_id', $userWallet->id)
                 ->orderBy('created_at', 'desc')
                 ->get()
                 ->map(function ($transaction) {
@@ -49,7 +67,8 @@ class WalletController extends Controller
                 'success' => true,
                 'adminWallet' => $adminWallet,
                 'systemWallet' => $systemWalletData,
-                'transactions' => $transactions
+                'systemwallettransactions' => $systemwallettransactions,
+                'adminwallettransactions' => $adminwallettransactions,
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -81,6 +100,79 @@ class WalletController extends Controller
                 'success' => false,
                 'message' => 'Erreur lors de la demande de retrait',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Transfert de fonds entre wallets
+     */
+    public function funds_transfer(Request $request)
+    {
+        try {
+            $request->validate([
+                'recipient_account_id' => 'required',
+                'amount' => 'required|numeric|min:0',
+                'description' => 'required',
+                'password' => 'required'
+            ]);
+
+            // Vérifier le mot de passe de l'utilisateur
+            $user = Auth::user();
+            if (!Hash::check($request->password, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mot de passe incorrect'
+                ], 401);
+            }
+
+            $userWallet = Wallet::where('user_id', Auth::id())->first();
+            $recipient = User::where("account_id", $request->recipient_account_id)->first();
+            
+            if (!$recipient) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Compte du bénéficiaire non trouvé'
+                ], 404);
+            }
+            
+            $recipientWallet = Wallet::where('user_id', $recipient->id)->first();
+
+            if (!$recipientWallet) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Compte du bénéficiaire non trouvé'
+                ], 404);
+            }
+
+            if ($userWallet->id == $recipientWallet->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas transférer des fonds sur votre propre compte'
+                ], 400);
+            }
+
+            if ($userWallet->balance < $request->amount) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Solde insuffisant'
+                ], 400);
+            }
+
+            $userWallet->withdrawFunds($request->amount, "transfer", "completed", ["bénéficiaire" => $recipientWallet->user->name, "montant"=>$request->amount, "description"=>$request->description]);
+            $recipientWallet->addFunds($request->amount, "reception", "completed", ["créditeur" => $userWallet->user->name, "montant"=>$request->amount, "description"=>$request->description]);
+
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Transfert effectué avec succès'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error($e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du transfert',
+                'error' => 'Erreur lors du transfert'
             ], 500);
         }
     }
