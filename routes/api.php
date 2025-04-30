@@ -243,13 +243,18 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::patch('packs/{pack}/toggle-status', [\App\Http\Controllers\Admin\PackController::class, 'toggleStatus']);
     Route::post('packs/add', [\App\Http\Controllers\Admin\PackController::class, 'store']);
 
-    // Gestion des utilisateurs
+    //Routes pour la gestion des utilisateurs
     Route::get('users', [UserController::class, 'index']);
     Route::get('users/{user}', [UserController::class, 'show']);
     Route::patch('users/{user}', [UserController::class, 'update']);
     Route::delete('users/{user}', [UserController::class, 'destroy']);
     Route::patch('users/toggle-status/{userId}', [UserController::class, 'toggleStatus']);
     Route::get('users/{user}/referrals', [UserController::class, 'referrals']);
+    Route::post('/users/{id}/reset-password', [UserController::class, 'resetPassword']);
+    Route::get('/users/{id}/wallet', [UserController::class, 'getWalletData']);
+    Route::get('/users/{id}/packs', [UserController::class, 'getUserPacks']);
+    Route::get('/users/packs/{id}/stats', [UserController::class, 'getDetailedPackStats']);
+    Route::get('/users/packs/{id}/referrals', [UserController::class, 'getPackReferrals']);
 
     // Routes pour la gestion des retraits (admin)
     Route::get('/withdrawal/requests', [WithdrawalController::class, 'getRequests']);
@@ -297,7 +302,6 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::patch('/business-opportunities/{id}/status', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateStatus']);
     Route::patch('/business-opportunities/{id}/etat', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateEtat']);
     Route::delete('/business-opportunities/{id}', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'destroy']);
-    Route::post('/users/{id}/reset-password', [App\Http\Controllers\Admin\UserController::class, 'resetPassword']);
 
     Route::post('/wallet/funds-transfer', [App\Http\Controllers\Admin\WalletController::class, 'funds_transfer']);
     
