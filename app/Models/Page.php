@@ -13,6 +13,7 @@ class Page extends Model
         'user_id',
         'nombre_abonnes',
         'nombre_likes',
+        'photo_de_couverture'
     ];
 
     /**

@@ -19,6 +19,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->integer('nombre_abonnes')->default(0);
             $table->integer('nombre_likes')->default(0);
+            $table->string('photo_de_couverture', 300)->nullable();
             $table->timestamps();
         });
 

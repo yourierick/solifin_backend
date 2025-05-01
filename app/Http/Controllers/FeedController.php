@@ -32,7 +32,6 @@ class FeedController extends Controller
      */
     public function index(Request $request)
     {
-        \Log::info($request->all());
         $type = $request->input('type', 'publicites');
         $lastId = $request->input('last_id', 0);
         $limit = $request->input('limit', 10);
@@ -307,6 +306,7 @@ class FeedController extends Controller
         $page->save();
         
         return response()->json([
+            'success' => true,
             'message' => 'Vous êtes maintenant abonné à cette page',
             'subscribed' => true
         ], 201);
@@ -486,6 +486,7 @@ class FeedController extends Controller
         }
         
         return response()->json([
+            'success' => true,
             'message' => 'Vous vous êtes désabonné de cette page',
             'subscribed' => false
         ]);
@@ -503,8 +504,15 @@ class FeedController extends Controller
         })->with('user')->get();
 
         foreach ($pages as $page) {
-            $page->user->profile_picture = asset('storage/' . $page->user->picture);
+            if ($page->user->picture) {
+                $page->user->picture = asset('storage/' . $page->user->picture);
+            }
+
+            if ($page->photo_de_couverture) {
+                $page->photo_de_couverture = asset('storage/' . $page->photo_de_couverture);
+            }
         }
+
         
         return response()->json([
             'pages' => $pages
@@ -530,9 +538,15 @@ class FeedController extends Controller
             ->take(10)
             ->get();
 
-        foreach($pages as $page) {
-            $page->user->profile_picture = asset('storage/' . $page->user->picture);
-        }
+            foreach ($pages as $page) {
+                if ($page->user->picture) {
+                    $page->user->picture = asset('storage/' . $page->user->picture);
+                }
+    
+                if ($page->photo_de_couverture) {
+                    $page->photo_de_couverture = asset('storage/' . $page->photo_de_couverture);
+                }
+            }
         
         return response()->json([
             'pages' => $pages

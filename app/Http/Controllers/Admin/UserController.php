@@ -490,172 +490,6 @@ class UserController extends BaseController
     }
 
     //Détails d'un utilisateur
-    // Récupérer les données du wallet de l'utilisateur à détailler
-    public function getWalletData($id)
-    {
-        try {
-            // Récupérer le wallet de l'utilisateur à détailler
-            $userWallet = Wallet::where('user_id', $id)->first();
-            $Wallet = $userWallet ? [
-                'balance' => number_format($userWallet->balance, 2) . ' $',
-                'total_earned' => number_format($userWallet->total_earned, 2) . ' $',
-                'total_withdrawn' => number_format($userWallet->total_withdrawn, 2) . ' $',
-            ] : null;
-
-            // Récupérer les transactions du wallet
-            $transactions = WalletTransaction::with('wallet')->where('wallet_id', $userWallet->id)
-                ->orderBy('created_at', 'desc')
-                ->get()
-                ->map(function ($transaction) {
-                    return [
-                        'id' => $transaction->id,
-                        'amount' => number_format($transaction->amount, 2) . ' $',
-                        'type' => $transaction->type,
-                        'status' => $transaction->status,
-                        'metadata' => $transaction->metadata,
-                        'created_at' => $transaction->created_at->format('d/m/Y H:i:s')
-                    ];
-                });
-
-            return response()->json([
-                'success' => true,
-                'userWallet' => $userWallet,
-                'transactions' => $transactions
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la récupération des données',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    //récupérer tous les packs achetés par l'utilisateur
-    public function getUserPacks($id)
-    {
-        try {
-            $userPacks = UserPack::with(['pack', 'sponsor'])
-                ->where('user_id', $id)
-                ->get()
-                ->map(function ($userPack) {
-                    $data = $userPack->toArray();
-                    if ($userPack->sponsor) {
-                        $data['sponsor_info'] = [
-                            'name' => $userPack->sponsor->name,
-                            'email' => $userPack->sponsor->email,
-                            'phone' => $userPack->sponsor->phone,
-                        ];
-                    }
-                    
-                    // Récupérer le nombre de filleuls par génération pour ce pack
-                    $referralsByGeneration = [0, 0, 0, 0]; // Initialiser un tableau pour 4 générations
-                    
-                    // Filleuls de première génération (directs)
-                    $referralsByGeneration[0] = UserPack::where('sponsor_id', $userPack->user_id)
-                        ->where('pack_id', $userPack->pack_id)
-                        ->where('payment_status', 'completed')
-                        ->count();
-                    
-                    // Pour les générations suivantes, nous utilisons une requête récursive avec CTE (Common Table Expression)
-                    if ($referralsByGeneration[0] > 0) {
-                        $referralsData = \DB::select("
-                            WITH RECURSIVE filleuls AS (
-                                -- Première génération (directs)
-                                SELECT up1.user_id, up1.sponsor_id, 1 as generation
-                                FROM user_packs up1
-                                WHERE up1.sponsor_id = ? AND up1.pack_id = ? AND up1.payment_status = 'completed'
-                                
-                                UNION ALL
-                                
-                                -- Générations suivantes (2 à 4)
-                                SELECT up2.user_id, up2.sponsor_id, f.generation + 1
-                                FROM user_packs up2
-                                INNER JOIN filleuls f ON up2.sponsor_id = f.user_id
-                                WHERE up2.pack_id = ? AND up2.payment_status = 'completed' AND f.generation < 4
-                            )
-                            SELECT generation, COUNT(user_id) as total_filleuls
-                            FROM filleuls
-                            WHERE generation > 1
-                            GROUP BY generation
-                            ORDER BY generation
-                        ", [$userPack->user_id, $userPack->pack_id, $userPack->pack_id]);
-                        
-                        // Remplir le tableau avec les résultats de la requête
-                        foreach ($referralsData as $referral) {
-                            // Les générations commencent à 1 dans la requête SQL, mais à 0 dans notre tableau
-                            $index = $referral->generation - 1;
-                            if ($index < 4) {
-                                $referralsByGeneration[$index] = $referral->total_filleuls;
-                            }
-                        }
-                    }
-                    
-                    $data['referrals_by_generation'] = $referralsByGeneration;
-                    return $data;
-                });
-
-            // Récupérer tous les packs actifs de l'utilisateur
-            $utilisateur = User::find($id);
-            $user_packs = $utilisateur->packs()
-                ->wherePivot('payment_status', 'completed')
-                ->wherePivot('status', 'active')
-                ->get();
-
-            $pointsByPack = [];
-            $totalPoints = 0;
-            $totalValue = 0;
-            $totalUsedPoints = 0;
-            
-            foreach ($user_packs as $pack) {
-                // Récupérer ou créer les points bonus pour ce pack
-                $userPoints = UserBonusPoint::getOrCreate($id, $pack->id);
-                
-                // Récupérer la valeur du point pour ce pack
-                $bonusRate = BonusRates::where('pack_id', $pack->id)
-                    ->where('frequence', 'weekly')
-                    ->first();
-                    
-                $valeurPoint = $bonusRate ? $bonusRate->valeur_point : 0;
-                $valeurTotale = $userPoints->points_disponibles * $valeurPoint;
-                
-                $pointsByPack[] = [
-                    'pack_id' => $pack->id,
-                    'pack_name' => $pack->name,
-                    'disponibles' => $userPoints->points_disponibles,
-                    'utilises' => $userPoints->points_utilises,
-                    'valeur_point' => $valeurPoint,
-                    'valeur_totale' => $valeurTotale
-                ];
-                
-                $totalPoints += $userPoints->points_disponibles;
-                $totalValue += $valeurTotale;
-                $totalUsedPoints += $userPoints->points_utilises;
-            }
-            
-            // Calculer la valeur moyenne d'un point (pour l'affichage global)
-            $averagePointValue = $totalPoints > 0 ? $totalValue / $totalPoints : 0;
-
-            return response()->json([
-                'success' => true,
-                'packs' => $userPacks,
-                'points' => [
-                    'disponibles' => $totalPoints,
-                    'utilises' => $totalUsedPoints,
-                    'valeur_point' => round($averagePointValue, 2),
-                    'valeur_totale' => $totalValue,
-                    'points_par_pack' => $pointsByPack
-                ]
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('Erreur lors de la récupération des packs: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la récupération des packs'
-            ], 500);
-        }
-    }
-
     //récupérer les filleuls d'un pack
     public function getPackReferrals(Request $request, $id)
     {
@@ -753,7 +587,8 @@ class UserController extends BaseController
                 'data' => $allGenerations
             ]);
         } catch (\Exception $e) {
-            \Log::error('Erreur lors de la récupération des filleuls: ' . $e->getMessage());
+            \Log::error('Erreur lors de la récupération des filleuls: ' . $e->getTraceAsString());
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des filleuls: ' . $e->getMessage()
@@ -771,7 +606,8 @@ class UserController extends BaseController
     public function getDetailedPackStats(Request $request, $id)
     {
         try {
-            $pack = Pack::findOrFail($id);
+            $userpack = UserPack::with('pack')->find($id);
+            $pack = $userpack->pack;
             
             // Pour l'admin, on doit pouvoir spécifier l'utilisateur
             $userId = $request->query('user_id');
@@ -964,6 +800,7 @@ class UserController extends BaseController
                         'amount' => $commission->amount,
                         'date' => $commission->created_at->format('d/m/Y'),
                         'source' => $commission->source_user->name ?? 'Inconnu',
+                        'status' => $commission->status,
                         'level' => $commission->level
                     ];
                 });
@@ -980,6 +817,7 @@ class UserController extends BaseController
                     return [
                         'id' => $referral['id'],
                         'name' => $referral['name'],
+                        'generation' => $referral['generation'],
                         'pack_name' => $referral['pack_name'],
                         'purchase_date' => $referral['purchase_date'] ? $referral['purchase_date']->format('d/m/Y') : 'N/A',
                         'expiry_date' => $referral['expiry_date'] ? $referral['expiry_date']->format('d/m/Y') : 'N/A',
@@ -1011,15 +849,14 @@ class UserController extends BaseController
                 ->values()
                 ->toArray();
 
-            $bonus = UserBonusPoint::where('user_id', $userId)
-                ->where('pack_id', $pack->id)
-                ->first();
-
-            $points_bonus = 0;
+            $bonus = UserBonusPoint::where('user_id', $userId)->where("pack_id", $pack->id)->first();
+           
+            $bonus_disponibles = 0;
+            $bonus_utilises = 0;
             if ($bonus) {
-                $points_bonus = $bonus->points_disponibles + $bonus->points_utilises;
+                $bonus_disponibles = $bonus->points_disponibles;
+                $bonus_utilises = $bonus->points_utilises;
             }
-
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -1030,6 +867,8 @@ class UserController extends BaseController
                         'inactive_referrals' => $inactiveReferralsCount,
                         'total_commission' => $totalCommission,
                         'failed_commission' => $failedCommission,
+                        'bonus_disponibles' => $bonus_disponibles,
+                        'bonus_utilises' => $bonus_utilises,
                         'best_generation' => $bestGeneration
                     ],
                     'progression' => [
@@ -1043,7 +882,6 @@ class UserController extends BaseController
                         'latest_payments' => $latestPayments
                     ],
                     'all_referrals' => $allReferrals,
-                    'points_bonus' => $points_bonus,
                 ]
             ]);
         } catch (\Exception $e) {
@@ -1052,6 +890,52 @@ class UserController extends BaseController
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des statistiques détaillées: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Toggle le statut d'un pack utilisateur (active/inactive)
+     *
+     * @param Request $request
+     * @param int $packId ID du pack utilisateur
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function togglePackStatus(Request $request, $packId)
+    {
+        try {
+            // Trouver le pack utilisateur
+            $userPack = UserPack::findOrFail($packId);
+            
+            // Vérifier que le pack existe
+            if (!$userPack) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pack utilisateur non trouvé'
+                ], 404);
+            }
+            
+            // Inverser le statut
+            $newStatus = $userPack->status === 'active' ? 'inactive' : 'active';
+            $userPack->status = $newStatus;
+            $userPack->save();
+            
+            // Log l'action
+            Log::info("Pack utilisateur ID {$packId} statut changé à {$newStatus} par admin ID " . $request->user()->id);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Statut du pack mis à jour avec succès',
+                'data' => [
+                    'id' => $userPack->id,
+                    'status' => $userPack->status
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors du changement de statut du pack: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du changement de statut du pack: ' . $e->getMessage()
             ], 500);
         }
     }

@@ -66,7 +66,7 @@ class PublicationSubmitted extends Notification
             'titre' => $this->data['titre'],
             'user_id' => $this->data['user_id'],
             'user_name' => $this->data['user_name'],
-            'url' => '/admin/validations'
+            'link' => '/admin/validations'
         ];
     }
 }

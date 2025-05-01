@@ -98,6 +98,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard/network', [DashboardController::class, 'network']);
     Route::get('/dashboard/wallet', [DashboardController::class, 'wallet']);
     Route::get('/dashboard/packs', [DashboardController::class, 'packs']);
+    Route::get('/dashboard/carousel', [DashboardController::class, 'carousel']);
+    Route::get('/stats/global', [DashboardController::class, 'getGlobalStats']);
 
     // Routes de notification
     Route::get('/notifications', [NotificationController::class, 'index']);
@@ -111,8 +113,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/userwallet/balance', [WalletUserController::class, 'getWalletBalance']);
     // Déconnexion
     Route::middleware('auth:sanctum')->post('/logout', [LoginController::class, 'logout']);
-
-    Route::get('/stats/global', [StatsController::class, 'getGlobalStats']);
 
     // Routes pour les packs utilisateur
     Route::get('/user/packs', [\App\Http\Controllers\User\PackController::class, 'getUserPacks']);
@@ -129,10 +129,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Routes pour la gestion des pages et publications
     Route::get('/my-page', [App\Http\Controllers\PageController::class, 'getMyPage']);
-    //Route::get('/pages/{id}', [App\Http\Controllers\PageController::class, 'getPage']);
-    Route::post('/pages/{pageId}/subscribe', [App\Http\Controllers\PageController::class, 'subscribe']);
-    Route::post('/pages/{pageId}/unsubscribe', [App\Http\Controllers\PageController::class, 'unsubscribe']);
-    Route::post('/pages/{pageId}/like', [App\Http\Controllers\PageController::class, 'likePage']);
+    Route::post('/my-page/update-cover-photo', [App\Http\Controllers\PageController::class, 'updateCoverPhoto']);
+    Route::get('/pages/{id}/check-subscription', [App\Http\Controllers\PageController::class, 'checkSubscription']);
+    Route::get('/pages/{id}', [App\Http\Controllers\PageController::class, 'getPage']);
+    // Route::get('/pages/{id}', [App\Http\Controllers\PageController::class, 'getPage']);
+    // Route::post('/pages/{pageId}/subscribe', [App\Http\Controllers\PageController::class, 'subscribe']);
+    // Route::post('/pages/{pageId}/unsubscribe', [App\Http\Controllers\PageController::class, 'unsubscribe']);
+    // Route::post('/pages/{pageId}/like', [App\Http\Controllers\PageController::class, 'likePage']);
+    // Route::get('/pages/{id}/check-subscription', [App\Http\Controllers\PageController::class, 'checkSubscription']);
     //Route::get('/pages/{pageId}/stats', [App\Http\Controllers\PageController::class, 'getPageStats']);
     
     // Routes pour les publicités
@@ -184,7 +188,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pages/subscribed', [App\Http\Controllers\FeedController::class, 'subscribedPages']);
     Route::get('/pages/recommended', [App\Http\Controllers\FeedController::class, 'recommendedPages']);
     Route::post('/pages/{id}/subscribe', [App\Http\Controllers\FeedController::class, 'subscribe']);
-    Route::delete('/pages/{id}/unsubscribe', [App\Http\Controllers\FeedController::class, 'unsubscribe']);
+    Route::post('/pages/{id}/unsubscribe', [App\Http\Controllers\FeedController::class, 'unsubscribe']);
+    
     
     // Routes pour les opportunités d'affaires
     Route::get('/opportunites-affaires', [App\Http\Controllers\OpportuniteAffaireController::class, 'index']);
@@ -255,6 +260,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::get('/users/{id}/packs', [UserController::class, 'getUserPacks']);
     Route::get('/users/packs/{id}/stats', [UserController::class, 'getDetailedPackStats']);
     Route::get('/users/packs/{id}/referrals', [UserController::class, 'getPackReferrals']);
+    Route::patch('/users/packs/{id}/toggle-status', [UserController::class, 'togglePackStatus']);
 
     // Routes pour la gestion des retraits (admin)
     Route::get('/withdrawal/requests', [WithdrawalController::class, 'getRequests']);
