@@ -449,6 +449,7 @@ class FeedController extends Controller
         }
 
         return response()->json([
+            "success" => true,
             'liked' => $liked,
             'likes_count' => $post->likes()->count()
         ]);
@@ -556,122 +557,126 @@ class FeedController extends Controller
     /**
      * Ajouter un commentaire à une publication
      */
-    public function addComment(Request $request, $id)
-    {
-        $post = Post::findOrFail($id);
+    // public function addComment(Request $request, $id)
+    // {
+    //     $post = Post::findOrFail($id);
         
-        // Vérifier si le post est approuvé
-        if ($post->status !== 'approved') {
-            return response()->json(['message' => 'Non autorisé'], 403);
-        }
+    //     // Vérifier si le post est approuvé
+    //     if ($post->status !== 'approved') {
+    //         return response()->json(['message' => 'Non autorisé'], 403);
+    //     }
 
-        $validator = Validator::make($request->all(), [
-            'content' => 'required|string',
-            'parent_id' => 'nullable|exists:comments,id'
-        ]);
+    //     $validator = Validator::make($request->all(), [
+    //         'content' => 'required|string',
+    //         'parent_id' => 'nullable|exists:comments,id'
+    //     ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+    //     if ($validator->fails()) {
+    //         return response()->json(['errors' => $validator->errors()], 422);
+    //     }
 
-        $comment = new Comment();
-        $comment->user_id = Auth::id();
-        $comment->post_id = $post->id;
-        $comment->content = $request->content;
-        $comment->parent_id = $request->parent_id;
-        $comment->save();
+    //     $comment = new Comment();
+    //     $comment->user_id = Auth::id();
+    //     $comment->post_id = $post->id;
+    //     $comment->content = $request->content;
+    //     $comment->parent_id = $request->parent_id;
+    //     $comment->save();
 
-        // Charger les relations pour la réponse
-        $comment->load('user');
-        $comment->created_at_formatted = $comment->created_at->diffForHumans();
-        $comment->likes_count = 0;
-        $comment->is_liked = false;
+    //     // Charger les relations pour la réponse
+    //     $comment->load('user');
+    //     $comment->created_at_formatted = $comment->created_at->diffForHumans();
+    //     $comment->likes_count = 0;
+    //     $comment->is_liked = false;
 
-        return response()->json([
-            'message' => 'Commentaire ajouté avec succès',
-            'comment' => $comment,
-            'comments_count' => $post->comments()->count()
-        ], 201);
-    }
+    //     return response()->json([
+    //         "success" => true,
+    //         'message' => 'Commentaire ajouté avec succès',
+    //         'comment' => $comment,
+    //         'comments_count' => $post->comments()->count()
+    //     ], 201);
+    // }
 
-    /**
-     * Supprimer un commentaire
-     */
-    public function deleteComment($id)
-    {
-        $comment = Comment::findOrFail($id);
+    // /**
+    //  * Supprimer un commentaire
+    //  */
+    // public function deleteComment($id)
+    // {
+    //     $comment = Comment::findOrFail($id);
 
-        // Vérifier si l'utilisateur est autorisé à supprimer ce commentaire
-        if ($comment->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Non autorisé'], 403);
-        }
+    //     // Vérifier si l'utilisateur est autorisé à supprimer ce commentaire
+    //     if ($comment->user_id !== Auth::id()) {
+    //         return response()->json(['message' => 'Non autorisé'], 403);
+    //     }
 
-        $post_id = $comment->post_id;
-        $comment->delete();
+    //     $post_id = $comment->post_id;
+    //     $comment->delete();
 
-        return response()->json([
-            'message' => 'Commentaire supprimé avec succès',
-            'comments_count' => Post::find($post_id)->comments()->count()
-        ]);
-    }
+    //     return response()->json([
+    //         "success" => true,
+    //         'message' => 'Commentaire supprimé avec succès',
+    //         'comments_count' => Post::find($post_id)->comments()->count()
+    //     ]);
+    // }
 
-    /**
-     * Aimer ou ne plus aimer un commentaire
-     */
-    public function toggleCommentLike($id)
-    {
-        $comment = Comment::findOrFail($id);
-        $user = Auth::user();
+    // /**
+    //  * Aimer ou ne plus aimer un commentaire
+    //  */
+    // public function toggleCommentLike($id)
+    // {
+    //     $comment = Comment::findOrFail($id);
+    //     $user = Auth::user();
         
-        $like = $comment->likes()->where('user_id', $user->id)->first();
+    //     $like = $comment->likes()->where('user_id', $user->id)->first();
 
-        if ($like) {
-            // Si l'utilisateur a déjà aimé le commentaire, supprimer le like
-            $like->delete();
-            $liked = false;
-        } else {
-            // Sinon, créer un nouveau like
-            $comment->likes()->create([
-                'user_id' => $user->id
-            ]);
-            $liked = true;
-        }
+    //     if ($like) {
+    //         // Si l'utilisateur a déjà aimé le commentaire, supprimer le like
+    //         $like->delete();
+    //         $liked = false;
+    //     } else {
+    //         // Sinon, créer un nouveau like
+    //         $comment->likes()->create([
+    //             'user_id' => $user->id
+    //         ]);
+    //         $liked = true;
+    //     }
 
-        return response()->json([
-            'liked' => $liked,
-            'likes_count' => $comment->likes()->count()
-        ]);
-    }
+    //     return response()->json([
+    //         "success" => true,
+    //         'liked' => $liked,
+    //         'likes_count' => $comment->likes()->count()
+    //     ]);
+    // }
 
-    /**
-     * Enregistrer un partage de publication
-     */
-    public function sharePost(Request $request, $id)
-    {
-        $post = Post::findOrFail($id);
+    // /**
+    //  * Enregistrer un partage de publication
+    //  */
+    // public function sharePost(Request $request, $id)
+    // {
+    //     $post = Post::findOrFail($id);
         
-        // Vérifier si le post est approuvé
-        if ($post->status !== 'approved') {
-            return response()->json(['message' => 'Non autorisé'], 403);
-        }
+    //     // Vérifier si le post est approuvé
+    //     if ($post->status !== 'approved') {
+    //         return response()->json(['message' => 'Non autorisé'], 403);
+    //     }
 
-        $validator = Validator::make($request->all(), [
-            'platform' => 'required|in:facebook,twitter,instagram,whatsapp,linkedin,email,other'
-        ]);
+    //     $validator = Validator::make($request->all(), [
+    //         'platform' => 'required|in:facebook,twitter,instagram,whatsapp,linkedin,email,other'
+    //     ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+    //     if ($validator->fails()) {
+    //         return response()->json(['errors' => $validator->errors()], 422);
+    //     }
 
-        $share = new Share();
-        $share->user_id = Auth::id();
-        $share->post_id = $post->id;
-        $share->platform = $request->platform;
-        $share->save();
+    //     $share = new Share();
+    //     $share->user_id = Auth::id();
+    //     $share->post_id = $post->id;
+    //     $share->platform = $request->platform;
+    //     $share->save();
 
-        return response()->json([
-            'message' => 'Partage enregistré avec succès',
-            'shares_count' => $post->shares()->count()
-        ], 201);
-    }
+    //     return response()->json([
+    //         "success" => true,
+    //         'message' => 'Partage enregistré avec succès',
+    //         'shares_count' => $post->shares()->count()
+    //     ], 201);
+    // }
 }

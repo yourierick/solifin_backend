@@ -46,7 +46,7 @@ return [
     |
     */
 
-    // Expiration de la session après 2 heures (120 minutes)
-    'expiration' => 30,
+    // Expiration de la session après 10 minutes
+    'expiration' => 10,
 
 ];

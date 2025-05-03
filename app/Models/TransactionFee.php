@@ -88,6 +88,8 @@ class TransactionFee extends Model
         if ($this->fee_cap && $fee > $this->fee_cap) {
             $fee = $this->fee_cap;
         }
+
+        \Log::info($fee);
         
         return round($fee, 2);
     }

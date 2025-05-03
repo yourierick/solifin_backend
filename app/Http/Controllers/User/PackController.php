@@ -172,7 +172,7 @@ class PackController extends Controller
                 $walletsystem = WalletSystem::create(['balance' => 0]);
             }
             
-            $walletsystem->addFunds($validated['payment_method'] !== "solifin-wallet" ? $netAmountInUSD : $amountInUSD, "sales", "completed", [
+            $walletsystem->addFunds($validated['payment_method'] !== "solifin-wallet" ? $netAmountInUSD : 0, "sales", "completed", [
                 "user" => $user->name, 
                 "pack_id" => $pack->id, 
                 "pack_name" => $pack->name, 
@@ -357,11 +357,12 @@ class PackController extends Controller
                     ]);
 
                     // Ajouter le montant au wallet system
+                    //vu que c'est le wallet qui paie, il n'y aura aucun ajout dans le wallet system, c'est pourquoi le 0.
                     $walletsystem = WalletSystem::first();
                     if (!$walletsystem) {
                         $walletsystem = WalletSystem::create(['balance' => 0]);
                     }
-                    $walletsystem->addFunds($amountInUSD, "sales", "completed", [
+                    $walletsystem->addFunds(0, "sales", "completed", [
                         "user" => $validated["name"], 
                         "pack_id" => $pack->id, 
                         "payment_details" => $validated['payment_details'],

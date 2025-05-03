@@ -97,6 +97,7 @@ class JobOfferValidationController extends Controller
         
         // Mettre à jour le statut
         $offreEmploi->statut = 'approuvé';
+        $offreEmploi->created_at = now();
         $offreEmploi->save();
         
         // Notifier l'utilisateur que sa publication a été approuvée
@@ -106,7 +107,7 @@ class JobOfferValidationController extends Controller
             'id' => $offreEmploi->id,
             'titre' => $offreEmploi->titre,
             'statut' => 'approuve',
-            'message' => 'Votre offre d\'emploi a été approuvée et est maintenant visible par tous les utilisateurs.'
+            'message' => 'Votre offre d\'emploi a été approuvée et est maintenant visible par tous les utilisateurs pendant '. $publicite->duree_affichage . ' jours.'
         ]));
         
         return response()->json([

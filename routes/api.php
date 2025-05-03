@@ -127,17 +127,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/withdrawal/request/{walletId}', [WithdrawalController::class, 'request']);
     Route::post('/withdrawal/request/{id}/cancel', [WithdrawalController::class, 'cancel']);
 
-    // Routes pour la gestion des pages et publications
+    // Routes pour la gestion des pages et publications et files d'actualités
     Route::get('/my-page', [App\Http\Controllers\PageController::class, 'getMyPage']);
     Route::post('/my-page/update-cover-photo', [App\Http\Controllers\PageController::class, 'updateCoverPhoto']);
+    Route::get('/feed', [App\Http\Controllers\FeedController::class, 'index']);
+    //Route::get('/posts/{id}', [App\Http\Controllers\FeedController::class, 'show']);
+    Route::get('/pages/subscribed', [App\Http\Controllers\FeedController::class, 'subscribedPages']);
+    Route::get('/pages/recommended', [App\Http\Controllers\FeedController::class, 'recommendedPages']);
+    Route::post('/pages/{id}/subscribe', [App\Http\Controllers\FeedController::class, 'subscribe']);
+    Route::post('/pages/{id}/unsubscribe', [App\Http\Controllers\FeedController::class, 'unsubscribe']);
     Route::get('/pages/{id}/check-subscription', [App\Http\Controllers\PageController::class, 'checkSubscription']);
     Route::get('/pages/{id}', [App\Http\Controllers\PageController::class, 'getPage']);
-    // Route::get('/pages/{id}', [App\Http\Controllers\PageController::class, 'getPage']);
-    // Route::post('/pages/{pageId}/subscribe', [App\Http\Controllers\PageController::class, 'subscribe']);
-    // Route::post('/pages/{pageId}/unsubscribe', [App\Http\Controllers\PageController::class, 'unsubscribe']);
-    // Route::post('/pages/{pageId}/like', [App\Http\Controllers\PageController::class, 'likePage']);
-    // Route::get('/pages/{id}/check-subscription', [App\Http\Controllers\PageController::class, 'checkSubscription']);
-    //Route::get('/pages/{pageId}/stats', [App\Http\Controllers\PageController::class, 'getPageStats']);
     
     // Routes pour les publicités
     Route::get('/publicites', [App\Http\Controllers\PubliciteController::class, 'index']);
@@ -148,6 +148,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/publicites/{id}', [App\Http\Controllers\PubliciteController::class, 'destroy']);
     Route::put('/ad/{id}/etat', [App\Http\Controllers\PubliciteController::class, 'changeEtat']);
     Route::put('/publicites/{id}/statut', [App\Http\Controllers\PubliciteController::class, 'changeStatut']);
+    Route::post('/publicites/{id}/boost', [App\Http\Controllers\PubliciteController::class, 'boost']);
     Route::get('/admin/publicites/pending', [App\Http\Controllers\PubliciteController::class, 'getPendingAds']);
     
     // Routes pour les interactions avec les publicités
@@ -168,6 +169,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/offres-emploi/{id}', [App\Http\Controllers\OffreEmploiController::class, 'destroy']);
     Route::put('/offres-emploi/{id}/etat', [App\Http\Controllers\OffreEmploiController::class, 'changeEtat']);
     Route::put('/offres-emploi/{id}/statut', [App\Http\Controllers\OffreEmploiController::class, 'changeStatut']);
+    Route::post('/offres-emploi/{id}/boost', [App\Http\Controllers\OffreEmploiController::class, 'boost']);
     Route::get('/admin/offres-emploi/pending', [App\Http\Controllers\OffreEmploiController::class, 'getPendingJobs']);
     
     // Routes pour les interactions avec les offres d'emploi
@@ -179,18 +181,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/offres-emploi/{id}/share', [App\Http\Controllers\OffreEmploiController::class, 'share']);
     Route::get('/offres-emploi/{id}/shares', [App\Http\Controllers\OffreEmploiController::class, 'getShares']);
     
-    // Routes pour le fil d'actualités
-    // Routes pour le fil d'actualité
-    Route::get('/feed', [App\Http\Controllers\FeedController::class, 'index']);
-    //Route::get('/posts/{id}', [App\Http\Controllers\FeedController::class, 'show']);
-    
-    // Routes pour la gestion des abonnements aux pages
-    Route::get('/pages/subscribed', [App\Http\Controllers\FeedController::class, 'subscribedPages']);
-    Route::get('/pages/recommended', [App\Http\Controllers\FeedController::class, 'recommendedPages']);
-    Route::post('/pages/{id}/subscribe', [App\Http\Controllers\FeedController::class, 'subscribe']);
-    Route::post('/pages/{id}/unsubscribe', [App\Http\Controllers\FeedController::class, 'unsubscribe']);
-    
-    
     // Routes pour les opportunités d'affaires
     Route::get('/opportunites-affaires', [App\Http\Controllers\OpportuniteAffaireController::class, 'index']);
     Route::post('/opportunites-affaires', [App\Http\Controllers\OpportuniteAffaireController::class, 'store']);
@@ -198,8 +188,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/opportunites-affaires/{id}/details', [App\Http\Controllers\OpportuniteAffaireController::class, 'details']);
     Route::put('/opportunites-affaires/{id}', [App\Http\Controllers\OpportuniteAffaireController::class, 'update']);
     Route::delete('/opportunites-affaires/{id}', [App\Http\Controllers\OpportuniteAffaireController::class, 'destroy']);
-    Route::put('/opportunites-affaires/{id}/etat', [App\Http\Controllers\OpportuniteAffaireController::class, 'changeEtat']);
     Route::put('/opportunites-affaires/{id}/statut', [App\Http\Controllers\OpportuniteAffaireController::class, 'changeStatut']);
+    Route::put('/opportunites-affaires/{id}/etat', [App\Http\Controllers\OpportuniteAffaireController::class, 'changeEtat']);
+    Route::post('/opportunites-affaires/{id}/boost', [App\Http\Controllers\OpportuniteAffaireController::class, 'boost']);
     Route::get('/admin/opportunites-affaires/pending', [App\Http\Controllers\OpportuniteAffaireController::class, 'getPendingOpportunities']);
     
     // Routes pour les interactions avec les opportunités d'affaires

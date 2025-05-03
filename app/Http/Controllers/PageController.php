@@ -171,7 +171,8 @@ class PageController extends Controller
             // Ajouter les statistiques de likes et commentaires
             $publicite->likes_count = PubliciteLike::where('publicite_id', $publicite->id)->count();
             $publicite->comments_count = PubliciteComment::where('publicite_id', $publicite->id)->count();
-            
+            $publicite->shares_count = PubliciteShare::where('publicite_id', $publicite->id)->count();
+            $publicite->type = "publicites";
             // Vérifier si l'utilisateur connecté a aimé cette publication
             if ($userId) {
                 $publicite->liked_by_current_user = PubliciteLike::where('publicite_id', $publicite->id)
@@ -198,7 +199,8 @@ class PageController extends Controller
             // Ajouter les statistiques de likes et commentaires
             $offre->likes_count = OffreEmploiLike::where('offre_emploi_id', $offre->id)->count();
             $offre->comments_count = OffreEmploiComment::where('offre_emploi_id', $offre->id)->count();
-            
+            $offre->shares_count = OffreEmploiShare::where('offre_emploi_id', $offre->id)->count();
+            $offre->type = "offres-emploi";
             // Vérifier si l'utilisateur connecté a aimé cette publication
             if ($userId) {
                 $offre->liked_by_current_user = OffreEmploiLike::where('offre_emploi_id', $offre->id)
@@ -245,7 +247,8 @@ class PageController extends Controller
             // Ajouter les statistiques de likes et commentaires
             $opportunite->likes_count = OpportuniteAffaireLike::where('opportunite_affaire_id', $opportunite->id)->count();
             $opportunite->comments_count = OpportuniteAffaireComment::where('opportunite_affaire_id', $opportunite->id)->count();
-            
+            $opportunite->shares_count = OpportuniteAffaireShare::where('opportunite_affaire_id', $opportunite->id)->count();
+            $opportunite->type = "opportunites-affaires";
             // Vérifier si l'utilisateur connecté a aimé cette publication
             if ($userId) {
                 $opportunite->liked_by_current_user = OpportuniteAffaireLike::where('opportunite_affaire_id', $opportunite->id)
@@ -291,89 +294,89 @@ class PageController extends Controller
      * @param  int  $pageId
      * @return \Illuminate\Http\Response
      */
-    public function subscribe($pageId)
-    {
-        $user = Auth::user();
-        $page = Page::findOrFail($pageId);
+    // public function subscribe($pageId)
+    // {
+    //     $user = Auth::user();
+    //     $page = Page::findOrFail($pageId);
 
-        // Vérifier si l'utilisateur est déjà abonné
-        $existingSubscription = PageAbonnes::where('page_id', $pageId)
-            ->where('user_id', $user->id)
-            ->first();
+    //     // Vérifier si l'utilisateur est déjà abonné
+    //     $existingSubscription = PageAbonnes::where('page_id', $pageId)
+    //         ->where('user_id', $user->id)
+    //         ->first();
 
-        if ($existingSubscription) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Vous êtes déjà abonné à cette page.'
-            ], 400);
-        }
+    //     if ($existingSubscription) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Vous êtes déjà abonné à cette page.'
+    //         ], 400);
+    //     }
 
-        // Créer l'abonnement
-        PageAbonnes::create([
-            'page_id' => $pageId,
-            'user_id' => $user->id
-        ]);
+    //     // Créer l'abonnement
+    //     PageAbonnes::create([
+    //         'page_id' => $pageId,
+    //         'user_id' => $user->id
+    //     ]);
 
-        // Mettre à jour le nombre d'abonnés
-        $page->nombre_abonnes = $page->nombre_abonnes + 1;
-        $page->save();
+    //     // Mettre à jour le nombre d'abonnés
+    //     $page->nombre_abonnes = $page->nombre_abonnes + 1;
+    //     $page->save();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Vous êtes maintenant abonné à cette page.'
-        ]);
-    }
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'Vous êtes maintenant abonné à cette page.'
+    //     ]);
+    // }
 
-    /**
-     * Se désabonner d'une page
-     *
-     * @param  int  $pageId
-     * @return \Illuminate\Http\Response
-     */
-    public function unsubscribe($pageId)
-    {
-        $user = Auth::user();
-        $page = Page::findOrFail($pageId);
+    // /**
+    //  * Se désabonner d'une page
+    //  *
+    //  * @param  int  $pageId
+    //  * @return \Illuminate\Http\Response
+    //  */
+    // public function unsubscribe($pageId)
+    // {
+    //     $user = Auth::user();
+    //     $page = Page::findOrFail($pageId);
 
-        // Supprimer l'abonnement
-        $deleted = PageAbonnes::where('page_id', $pageId)
-            ->where('user_id', $user->id)
-            ->delete();
+    //     // Supprimer l'abonnement
+    //     $deleted = PageAbonnes::where('page_id', $pageId)
+    //         ->where('user_id', $user->id)
+    //         ->delete();
 
-        if (!$deleted) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Vous n\'êtes pas abonné à cette page.'
-            ], 400);
-        }
+    //     if (!$deleted) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Vous n\'êtes pas abonné à cette page.'
+    //         ], 400);
+    //     }
 
-        // Mettre à jour le nombre d'abonnés
-        $page->nombre_abonnes = max(0, $page->nombre_abonnes - 1);
-        $page->save();
+    //     // Mettre à jour le nombre d'abonnés
+    //     $page->nombre_abonnes = max(0, $page->nombre_abonnes - 1);
+    //     $page->save();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Vous êtes maintenant désabonné de cette page.'
-        ]);
-    }
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'Vous êtes maintenant désabonné de cette page.'
+    //     ]);
+    // }
 
-    /**
-     * Aimer une page
-     *
-     * @param  int  $pageId
-     * @return \Illuminate\Http\Response
-     */
-    public function likePage($pageId)
-    {
-        $page = Page::findOrFail($pageId);
-        $page->nombre_likes = $page->nombre_likes + 1;
-        $page->save();
+    // /**
+    //  * Aimer une page
+    //  *
+    //  * @param  int  $pageId
+    //  * @return \Illuminate\Http\Response
+    //  */
+    // public function likePage($pageId)
+    // {
+    //     $page = Page::findOrFail($pageId);
+    //     $page->nombre_likes = $page->nombre_likes + 1;
+    //     $page->save();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Vous avez aimé cette page.'
-        ]);
-    }
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'Vous avez aimé cette page.'
+    //     ]);
+    // }
 
     /**
      * Récupérer les abonnés d'une page

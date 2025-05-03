@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Carbon;
 
 class BusinessOpportunityValidationController extends Controller
 {
@@ -66,6 +67,7 @@ class BusinessOpportunityValidationController extends Controller
         
         // Mettre à jour le statut
         $opportuniteAffaire->statut = 'approuvé';
+        $opportuniteAffaire->created_at = now();
         $opportuniteAffaire->save();
         
         // Notifier l'utilisateur que sa publication a été approuvée
@@ -75,7 +77,7 @@ class BusinessOpportunityValidationController extends Controller
             'id' => $opportuniteAffaire->id,
             'titre' => $opportuniteAffaire->titre,
             'statut' => 'approuvé',
-            'message' => 'Votre opportunité d\'affaire a été approuvée et est maintenant visible par tous les utilisateurs.'
+            'message' => 'Votre opportunité d\'affaire a été approuvée et est maintenant visible par tous les utilisateurs pendant '. $publicite->duree_affichage . ' jours.'
         ]));
         
         return response()->json([

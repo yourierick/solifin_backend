@@ -30,7 +30,7 @@ class CommissionService
 
                 //Vérifier si le pack du sponsor est actif
                 $checkPack = $currentSponsor->packs()->where('pack_id', $purchase->pack_id)->first();
-                if ($checkPack->status == 1) {
+                if ($checkPack->status === "active") {
                     // Créer la commission
                     $commission = Commission::create([
                         'user_id' => $currentSponsor->id,
