@@ -16,6 +16,7 @@ use App\Models\WalletSystem;
 use App\Models\TransactionFee;
 use Illuminate\Support\Facades\DB;
 use App\Models\Wallet;
+use App\Models\Setting;
 
 class OffreEmploiController extends Controller
 {
@@ -735,7 +736,7 @@ class OffreEmploiController extends Controller
                 ];
                 
                 if ($comment->user->picture) {
-                    $userData['picture'] = asset('storage/' . $comment->user->picture);
+                    $userData['profile_picture'] = asset('storage/' . $comment->user->picture);
                 }
                 
                 return [
@@ -814,7 +815,14 @@ class OffreEmploiController extends Controller
             
             // Calculer le montant en fonction du nombre de jours
             // Prix par jour (à ajuster selon votre modèle économique)
-            $pricePerDay = 5; // 5 USD par jour par défaut
+            // Récupérer le paramètre de prix du boost
+            $setting = Setting::where('key', 'boost_price')->first();
+            
+            // Valeur par défaut si le paramètre n'est pas défini
+            $defaultPrice = 1;
+            
+            // Si le paramètre existe, utiliser sa valeur, sinon utiliser la valeur par défaut
+            $pricePerDay = $setting ? $setting->value : $defaultPrice;
             $amount = $pricePerDay * $days;
             
             // Récupérer les frais de transaction depuis la base de données
@@ -867,8 +875,8 @@ class OffreEmploiController extends Controller
             $netAmountInUSD = round($amountInUSD - $feesInUSD, 0);
 
             // Vérifier que le montant net est suffisant pour couvrir le coût du pack
-            $boostCost = $pricePerDay * $days;
-            if ($netAmountInUSD < $boostCost) {
+            $boostPrice = $pricePerDay * $days;
+            if ($netAmountInUSD < $boostPrice) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Le montant payé est insuffisant pour couvrir le coût du pack'

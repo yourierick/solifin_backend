@@ -189,7 +189,7 @@ class PageController extends Controller
                 ->take(3)
                 ->get()
                 ->map(function($comment) {
-                    $comment->user->picture = $comment->user->picture ? asset('storage/' . $comment->user->picture) : null;
+                    $comment->user->profile_picture = $comment->user->picture ? url('/') . Storage::url($comment->user->picture) : null;
                     return $comment;
                 });
         }

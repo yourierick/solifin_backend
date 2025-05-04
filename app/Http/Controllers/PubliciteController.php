@@ -18,6 +18,7 @@ use App\Models\ExchangeRates;
 use Illuminate\Support\Facades\DB;
 use App\Models\Wallet;
 use App\Models\WalletSystem;
+use App\Models\Setting;
 
 class PubliciteController extends Controller
 {
@@ -783,7 +784,7 @@ class PubliciteController extends Controller
                     'user' => [
                         'id' => $comment->user->id,
                         'name' => $comment->user->name,
-                        'picture' => $comment->user->picture ? asset('storage/' . $comment->user->picture) : null
+                        'profile_picture' => $comment->user->picture ? asset('storage/' . $comment->user->picture) : null
                     ],
                     'likes_count' => 0, // À implémenter si les commentaires ont des likes
                     'is_liked' => false // À implémenter si les commentaires ont des likes
@@ -856,7 +857,14 @@ class PubliciteController extends Controller
             
             // Calculer le montant en fonction du nombre de jours
             // Prix par jour (à ajuster selon votre modèle économique)
-            $pricePerDay = 6; // 6 USD par jour par défaut
+            // Récupérer le paramètre de prix du boost
+            $setting = Setting::where('key', 'boost_price')->first();
+            
+            // Valeur par défaut si le paramètre n'est pas défini
+            $defaultPrice = 1;
+            
+            // Si le paramètre existe, utiliser sa valeur, sinon utiliser la valeur par défaut
+            $pricePerDay = $setting ? $setting->value : $defaultPrice;
             $amount = $pricePerDay * $days;
             
             // Récupérer les frais de transaction depuis la base de données

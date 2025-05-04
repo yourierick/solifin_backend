@@ -7,6 +7,7 @@ use App\Models\WithdrawalRequest;
 use App\Models\WalletSystem;
 use App\Models\Wallet;
 use App\Models\User;
+use App\Models\Setting;
 use App\Notifications\WithdrawalOtpNotification;
 use App\Notifications\WithdrawalRequestCreated;
 use App\Notifications\WithdrawalRequestProcessed;
@@ -569,6 +570,45 @@ class WithdrawalController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors du rejet de la demande',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Récupère le pourcentage de commission de parrainage depuis les paramètres du système
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getReferralCommissionPercentage()
+    {
+        try {
+            // Récupérer le paramètre withdrawal_commission
+            $setting = Setting::where('key', 'withdrawal_commission')->first();
+            
+            if ($setting) {
+                return response()->json([
+                    'success' => true,
+                    'percentage' => (float) $setting->value,
+                    'description' => $setting->description
+                ]);
+            } else {
+                // Si le paramètre n'est pas défini, retourner 0%
+                return response()->json([
+                    'success' => true,
+                    'percentage' => 0,
+                    'description' => 'Pourcentage de commission de parrainage (valeur par défaut)'
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération du pourcentage de commission de parrainage', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération du pourcentage de commission de parrainage',
                 'error' => $e->getMessage()
             ], 500);
         }

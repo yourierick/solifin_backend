@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\TransactionFee;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use App\Models\ExchangeRates;
 
@@ -49,7 +50,6 @@ class TransactionFeeApiController extends Controller
      */
     public function calculateTransferFee(Request $request)
     {
-        \Log::info($request->all());
         $paymentMethod = $request->input('payment_method');
         if ($paymentMethod === "wallet") {
             $paymentMethod = "solifin-wallet";
@@ -114,6 +114,14 @@ class TransactionFeeApiController extends Controller
             ], 400);
         }
         
+        // Récupérer le paramètre global withdrawal_fee_percentage depuis les paramètres du système
+        $globalFeePercentage = 0; // Valeur par défaut si le paramètre n'est pas défini
+        $setting = Setting::where('key', 'withdrawal_fee_percentage')->first();
+        if ($setting) {
+            $globalFeePercentage = (float) $setting->value;
+        }
+        
+        // Récupérer les informations de la méthode de paiement pour les autres paramètres (fee_fixed, fee_cap)
         $query = TransactionFee::where('payment_method', $paymentMethod)
                               ->where('is_active', true);
         
@@ -130,13 +138,27 @@ class TransactionFeeApiController extends Controller
             ], 404);
         }
         
-        $fee = $transactionFee->calculateWithdrawalFee((float) $amount);
+        // Calculer les frais en utilisant le pourcentage global mais en conservant les autres paramètres
+        // (fee_fixed, fee_cap) spécifiques à la méthode de paiement
+        $fee = $amount * ($globalFeePercentage / 100);
+        
+        // // Appliquer le montant minimum des frais
+        // if ($fee < $transactionFee->fee_fixed) {
+        //     $fee = $transactionFee->fee_fixed;
+        // }
+        
+        // // Appliquer le montant maximum des frais si défini
+        // if ($transactionFee->fee_cap && $fee > $transactionFee->fee_cap) {
+        //     $fee = $transactionFee->fee_cap;
+        // }
+        
+        $fee = round($fee, 2);
         
         return response()->json([
             'status' => 'success',
             'data' => [
                 'amount' => (float) $amount,
-                'percentage' => $transactionFee->withdrawal_fee_percentage,
+                'percentage' => $globalFeePercentage,
                 'fee' => $fee,
                 'total' => (float) $amount - $fee, // Pour un retrait, les frais sont déduits du montant
                 'payment_method' => $transactionFee->payment_method,
@@ -144,7 +166,6 @@ class TransactionFeeApiController extends Controller
             ]
         ]);
     }
-    
     
     /**
      * Récupère les frais de retrait pour un moyen de paiement spécifique.

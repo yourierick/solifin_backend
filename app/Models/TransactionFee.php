@@ -79,17 +79,15 @@ class TransactionFee extends Model
 
         $fee = $amount * ($this->transfer_fee_percentage / 100);
         
-        // Appliquer le montant minimum des frais
-        if ($fee < $this->fee_fixed) {
-            $fee = $this->fee_fixed;
-        }
+        // // Appliquer le montant minimum des frais
+        // if ($fee < $this->fee_fixed) {
+        //     $fee = $this->fee_fixed;
+        // }
         
-        // Appliquer le montant maximum des frais si défini
-        if ($this->fee_cap && $fee > $this->fee_cap) {
-            $fee = $this->fee_cap;
-        }
-
-        \Log::info($fee);
+        // // Appliquer le montant maximum des frais si défini
+        // if ($this->fee_cap && $fee > $this->fee_cap) {
+        //     $fee = $this->fee_cap;
+        //}
         
         return round($fee, 2);
     }
@@ -104,15 +102,15 @@ class TransactionFee extends Model
     {
         $fee = $amount * ($this->withdrawal_fee_percentage / 100);
         
-        // Appliquer le montant minimum des frais
-        if ($fee < $this->fee_fixed) {
-            $fee = $this->fee_fixed;
-        }
+        // // Appliquer le montant minimum des frais
+        // if ($fee < $this->fee_fixed) {
+        //     $fee = $this->fee_fixed;
+        // }
         
-        // Appliquer le montant maximum des frais si défini
-        if ($this->fee_cap && $fee > $this->fee_cap) {
-            $fee = $this->fee_cap;
-        }
+        // // Appliquer le montant maximum des frais si défini
+        // if ($this->fee_cap && $fee > $this->fee_cap) {
+        //     $fee = $this->fee_cap;
+        // }
         
         return round($fee, 2);
     }

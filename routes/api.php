@@ -126,6 +126,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/withdrawal/send-otp', [WithdrawalController::class, 'sendOtp']);
     Route::post('/withdrawal/request/{walletId}', [WithdrawalController::class, 'request']);
     Route::post('/withdrawal/request/{id}/cancel', [WithdrawalController::class, 'cancel']);
+    Route::get('/withdrawal/referral-commission', [WithdrawalController::class, 'getReferralCommissionPercentage']);
 
     // Routes pour la gestion des pages et publications et files d'actualités
     Route::get('/my-page', [App\Http\Controllers\PageController::class, 'getMyPage']);
@@ -214,6 +215,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     //Transfert de fonds entre wallets
     Route::post('/funds-transfer', [App\Http\Controllers\User\WalletUserController::class, 'funds_transfer']);
+
+    // Route pour récupérer le prix du boost
+    Route::get('/boost-price', [\App\Http\Controllers\BoostPriceController::class, 'getBoostPrice']);
 });
 
 // Routes admin
@@ -307,4 +311,9 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/settings/countries', [App\Http\Controllers\Admin\CountrySettingsController::class, 'update']);
     Route::put('/settings/countries/{countryCode}/toggle-status', [App\Http\Controllers\Admin\CountrySettingsController::class, 'toggleStatus']);
     Route::post('/settings/countries/toggle-restriction', [App\Http\Controllers\Admin\CountrySettingsController::class, 'toggleGlobalRestriction']);
+
+    // Routes pour la gestion des paramètres système
+    Route::get('/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'index']);
+    Route::get('/settings/key/{key}', [\App\Http\Controllers\Admin\SettingsController::class, 'getByKey']);
+    Route::put('/settings/key/{key}', [\App\Http\Controllers\Admin\SettingsController::class, 'updateByKey']);
 });

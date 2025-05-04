@@ -174,7 +174,7 @@ class FeedController extends Controller
                                 'user' => [
                                     'id' => $comment->user->id,
                                     'name' => $comment->user->name,
-                                    'profile_picture' => $comment->user->profile_picture ? url('/') . Storage::url($comment->user->profile_picture) : null
+                                    'profile_picture' => $comment->user->picture ? url('/') . Storage::url($comment->user->picture) : null
                                 ],
                                 'likes_count' => 0, // À implémenter si les commentaires ont des likes
                                 'is_liked' => false // À implémenter si les commentaires ont des likes
@@ -212,7 +212,7 @@ class FeedController extends Controller
                                 'user' => [
                                     'id' => $comment->user->id,
                                     'name' => $comment->user->name,
-                                    'profile_picture' => $comment->user->profile_picture ? url('/') . Storage::url($comment->user->profile_picture) : null
+                                    'profile_picture' => $comment->user->picture ? url('/') . Storage::url($comment->user->picture) : null
                                 ],
                                 'likes_count' => 0, // À implémenter si les commentaires ont des likes
                                 'is_liked' => false // À implémenter si les commentaires ont des likes
@@ -250,7 +250,7 @@ class FeedController extends Controller
                                 'user' => [
                                     'id' => $comment->user->id,
                                     'name' => $comment->user->name,
-                                    'profile_picture' => $comment->user->profile_picture ? url('/') . Storage::url($comment->user->profile_picture) : null
+                                    'profile_picture' => $comment->user->picture ? url('/') . Storage::url($comment->user->picture) : null
                                 ],
                                 'likes_count' => 0, // À implémenter si les commentaires ont des likes
                                 'is_liked' => false // À implémenter si les commentaires ont des likes
