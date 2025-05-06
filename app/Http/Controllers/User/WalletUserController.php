@@ -5,10 +5,12 @@ namespace App\Http\Controllers\User;
 use App\Http\Controllers\Controller;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Models\WalletSystem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
+use App\Models\Setting;
 
 class WalletUserController extends Controller
 {
@@ -107,7 +109,9 @@ class WalletUserController extends Controller
             $request->validate([
                 'recipient_account_id' => 'required',
                 'amount' => 'required|numeric|min:0',
-                'description' => 'required',
+                'original_amount' => 'required|numeric',
+                'fee_amount' => 'required|numeric',
+                'fee_percentage' => 'required|numeric',
                 'password' => 'required'
             ]);
 
@@ -153,8 +157,24 @@ class WalletUserController extends Controller
                 ], 400);
             }
 
-            $userWallet->withdrawFunds($request->amount, "transfer", "completed", ["bénéficiaire" => $recipientWallet->user->name, "montant"=>$request->amount, "description"=>$request->description]);
-            $recipientWallet->addFunds($request->amount, "reception", "completed", ["créditeur" => $userWallet->user->name, "montant"=>$request->amount, "description"=>$request->description]);
+            if ($request->fee_amount > 0) {
+                // Ajouter la transaction au wallet system
+                $walletsystem = WalletSystem::first();
+                if (!$walletsystem) {
+                    $walletsystem = WalletSystem::create(['balance' => 0]);
+                }
+                $walletsystem->addFunds(0, "sales", "completed", [
+                    "user" => $user->name, 
+                    "original_amount" => $request->original_amount,
+                    "original_currency" => "USD",
+                    "transaction_fees" => $request->fee_amount,
+                    "transaction_percentage" => $request->fee_percentage,
+                    "description" => "frais de transfert de ". $request->fee_amount . " $ pour le transfert d'un montant de ". $request->amount-$request->fee_amount ." $ par le compte " . $user->account_id . " au compte " . $request->recipient_account_id,
+                ]);
+            }
+
+            $userWallet->withdrawFunds($request->amount, "transfer", "completed", ["bénéficiaire" => $recipientWallet->user->name, "montant"=>$request->original_amount, "description"=>$request->description]);
+            $recipientWallet->addFunds($request->original_amount, "reception", "completed", ["créditeur" => $userWallet->user->name, "montant"=>$request->original_amount, "description"=>$request->description]);
 
 
             return response()->json([
@@ -169,5 +189,52 @@ class WalletUserController extends Controller
                 'error' => 'Erreur lors du transfert'
             ], 500);
         }
+    }
+
+    /**
+     * Récupérer les informations d'un utilisateur par son account_id pour le transfert des fonds wallet-wallet
+     */
+    public function getRecipientInfo($account_id)
+    {
+        $recipient = \App\Models\User::where('account_id', $account_id)->first();
+        if (!$recipient) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Destinataire introuvable'
+            ], 404);
+        }
+        return response()->json([
+            'success' => true,
+            'user' => [
+                'account_id' => $recipient->account_id,
+                'name' => $recipient->name,
+                'phone' => $recipient->phone,
+                'whatsapp' => $recipient->whatsapp,
+                'email' => $recipient->email,
+                'address' => $recipient->address,
+            ]
+        ]);
+    }
+
+    /**
+     * Récupère le pourcentage de frais de transfert depuis les paramètres du système
+     * 
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getTransferFeePercentage()
+    {
+        $feePercentage = \App\Models\Setting::where('key', 'sending_fee_percentage')->first();
+        
+        if (!$feePercentage) {
+            // Valeur par défaut si le paramètre n'existe pas
+            $feePercentage = 0;
+        } else {
+            $feePercentage = floatval($feePercentage->value);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'fee_percentage' => $feePercentage
+        ]);
     }
 } 

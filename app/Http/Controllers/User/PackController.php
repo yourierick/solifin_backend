@@ -18,6 +18,7 @@ use App\Models\TransactionFee;
 use App\Models\ExchangeRates;
 use App\Services\CommissionService;
 use App\Models\UserBonusPoint;
+use App\Models\Setting;
 
 class PackController extends Controller
 {
@@ -63,7 +64,6 @@ class PackController extends Controller
     //renouvellement d'un pack
     public function renewPack(Request $request, Pack $pack)
     {
-        \Log::info(['Renewing pack: ' . $pack->name, $request->all()]);
         try {
             $validated = $request->validate([
                 'payment_method' => 'required|string',
@@ -85,17 +85,17 @@ class PackController extends Controller
             
             $transactionFee = $transactionFeeModel->first();
             
-            // Calculer les frais de transaction
-            $transactionFees = 0;
+            // Recalculer les frais de transaction
+            $globalFeePercentage = (float) Setting::getValue('transfer_fee_percentage', 0);
+            $globalfees = ((float)$paymentAmount) * ($globalFeePercentage / 100);
+
+            $specificfees = 0;
             if ($transactionFee) {
-                $transactionFees = $transactionFee->calculateTransferFee((float) $paymentAmount, $paymentCurrency);
-                //\Log::info('Frais de transaction recalculés: ' . $transactionFees . ' pour la méthode ' . $paymentMethod);
-            } else {
-                //\Log::warning('Aucun frais de transaction trouvé pour la méthode ' . $paymentMethod);
+                $specificfees = $transactionFee->calculateTransferFee((float) $paymentAmount, $paymentCurrency);
             }
             
             // Montant total incluant les frais
-            $totalAmount = $paymentAmount + $transactionFees;
+            $totalAmount = $paymentAmount + $globalfees;
             
             // Si la devise n'est pas en USD, convertir le montant en USD (devise de base)
             $amountInUSD = $totalAmount;
@@ -112,8 +112,9 @@ class PackController extends Controller
             }
             
             // Soustraire les frais de transaction s'ils sont inclus dans le montant
-            $feesInUSD = $this->convertToUSD($transactionFees, $paymentCurrency);
-            $netAmountInUSD = round($amountInUSD - $feesInUSD, 0);
+            $feesInUSD = $this->convertToUSD($globalfees, $paymentCurrency);
+            $AmountInUSDWithoutSpecificFees = round($amountInUSD - $specificfees, 0);//Montant total à payer sans les frais de transaction spécifiques au moyen de paiement choisi
+            $netAmountInUSD = round($amountInUSD - $globalfees, 0);//Montant total à payer sans les frais de transaction globaux
             
             // Vérifier que le montant net est suffisant pour couvrir le coût du pack
             $packCost = $pack->price * $validated['duration_months'];
@@ -160,7 +161,7 @@ class PackController extends Controller
                     "currency" => $validated['currency'],
                     "original_amount" => $validated['amount'],
                     "payment_type" => $validated['payment_type'],
-                    "fees" => $feesInUSD
+                    "fees" => $globalfees
                 ]);
             } else {
                 //implémenter le paiement API
@@ -172,7 +173,7 @@ class PackController extends Controller
                 $walletsystem = WalletSystem::create(['balance' => 0]);
             }
             
-            $walletsystem->addFunds($validated['payment_method'] !== "solifin-wallet" ? $netAmountInUSD : 0, "sales", "completed", [
+            $walletsystem->addFunds($validated['payment_method'] !== "solifin-wallet" ? $AmountInUSDWithoutSpecificFees : 0, "sales", "completed", [
                 "user" => $user->name, 
                 "pack_id" => $pack->id, 
                 "pack_name" => $pack->name, 
@@ -181,7 +182,7 @@ class PackController extends Controller
                 "payment_details" => $validated['payment_details'] ?? [],
                 "currency" => $validated['currency'],
                 "original_amount" => $validated['amount'],
-                "fees" => $feesInUSD
+                "fees" => $globalfees
             ]);
 
             // on met à jour la date d'expiration
@@ -240,17 +241,18 @@ class PackController extends Controller
             
             $transactionFee = $transactionFeeModel->first();
             
-            // Calculer les frais de transaction
-            $transactionFees = 0;
+            // Recalculer les frais de transaction
+            $globalFeePercentage = (float) Setting::getValue('transfer_fee_percentage', 0);
+            $globalfees = ((float)$paymentAmount) * ($globalFeePercentage / 100);
+
+            $specificfees = 0;
             if ($transactionFee) {
-                $transactionFees = $transactionFee->calculateTransferFee((float) $paymentAmount, $paymentCurrency);
-                \Log::info('Frais de transaction recalculés: ' . $transactionFees . ' pour la méthode ' . $paymentMethod);
-            } else {
-                \Log::warning('Aucun frais de transaction trouvé pour la méthode ' . $paymentMethod);
+                $specificfees = $transactionFee->calculateTransferFee((float) $paymentAmount, $paymentCurrency);
             }
+        
             
             // Montant total incluant les frais
-            $totalAmount = $paymentAmount + $transactionFees;
+            $totalAmount = $paymentAmount + $globalfees;
             
             // Si la devise n'est pas en USD, convertir le montant en USD (devise de base)
             $amountInUSD = $totalAmount;
@@ -267,9 +269,10 @@ class PackController extends Controller
             }
             
             // Soustraire les frais de transaction s'ils sont inclus dans le montant
-            $feesInUSD = $this->convertToUSD($transactionFees, $paymentCurrency);
-            $netAmountInUSD = round($amountInUSD - $feesInUSD, 0);
-            
+            $feesInUSD = $this->convertToUSD($globalfees, $paymentCurrency);
+            $AmountInUSDWithoutSpecificFees = round($amountInUSD - $specificfees, 0);//Montant total à payer sans les frais de transaction spécifiques au moyen de paiement choisi
+            $netAmountInUSD = round($amountInUSD - $globalfees, 0);//Montant total à payer sans les frais de transaction globaux
+
             // Vérifier que le montant net est suffisant pour couvrir le coût du pack
             $packCost = $pack->price * $validated['months'];
             if ($netAmountInUSD < $packCost) {
@@ -373,7 +376,7 @@ class PackController extends Controller
                         "duration" => $validated['duration_months'],
                         "original_amount" => $paymentAmount,
                         "original_currency" => $paymentCurrency,
-                        "transaction_fees" => $validated['fees'],
+                        "transaction_fees" => $globalfees,
                         "converted_amount" => $netAmountInUSD,
                     ]);
 
@@ -445,7 +448,7 @@ class PackController extends Controller
                     if (!$walletsystem) {
                         $walletsystem = WalletSystem::create(['balance' => 0]);
                     }
-                    $walletsystem->addFunds($netAmountInUSD, "sales", "completed", [
+                    $walletsystem->addFunds($AmountInUSDWithoutSpecificFees, "sales", "completed", [
                         "user" => $validated["name"], 
                         "pack_id" => $pack->id, 
                         "payment_details" => $validated['payment_details'],
@@ -456,7 +459,7 @@ class PackController extends Controller
                         "duration" => $validated['duration_months'],
                         "original_amount" => $paymentAmount,
                         "original_currency" => $paymentCurrency,
-                        "transaction_fees" => $transactionFees,
+                        "transaction_fees" => $globalfees,
                         "converted_amount" => $netAmountInUSD,
                     ]);
                 }

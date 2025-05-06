@@ -111,6 +111,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/userwallet/data', [WalletUserController::class, 'getWalletData']);
     Route::get('/userwallet/balance', [WalletUserController::class, 'getWalletBalance']);
+    
     // Déconnexion
     Route::middleware('auth:sanctum')->post('/logout', [LoginController::class, 'logout']);
 
@@ -215,6 +216,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     //Transfert de fonds entre wallets
     Route::post('/funds-transfer', [App\Http\Controllers\User\WalletUserController::class, 'funds_transfer']);
+    Route::get('/recipient-info/{account_id}', [App\Http\Controllers\User\WalletUserController::class, 'getRecipientInfo']);
+    Route::get('/transfer-fee-percentage', [App\Http\Controllers\User\WalletUserController::class, 'getTransferFeePercentage']);
 
     // Route pour récupérer le prix du boost
     Route::get('/boost-price', [\App\Http\Controllers\BoostPriceController::class, 'getBoostPrice']);

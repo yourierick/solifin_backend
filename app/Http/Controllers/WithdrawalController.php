@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Hash;
 use Vonage\Client;
 use Vonage\Client\Credentials\Basic;
 use Vonage\SMS\Message\SMS;
@@ -175,7 +176,9 @@ class WithdrawalController extends Controller
                 'payment_type' => 'required|string|in:mobile-money,bank-transfer,money-transfer,credit-card',
                 'amount' => 'required|numeric|min:0',
                 'currency' => 'required|string',
-                'otp' => 'required',
+                'otp' => 'required_without:use_password',
+                'password' => 'required_if:use_password,true',
+                'use_password' => 'sometimes|boolean',
                 'withdrawal_fee' => 'required|numeric',
                 'referral_commission' => 'required|numeric',
                 'total_amount' => 'required|numeric',
@@ -212,19 +215,34 @@ class WithdrawalController extends Controller
                 $this->formatPhoneNumber($request->phone_number);
             }
 
-            // Vérifier l'OTP
-            $storedOtp = DB::table('withdrawal_otps')->where('user_id', $request->user()->id)->first();
-            \Log::info('Vérification OTP', [
-                'stored_otp' => $storedOtp->otp,
-                'request_otp' => $request->otp,
-                'match' => ($storedOtp->otp == $request->otp),
-            ]);
-            
-            if (!$storedOtp || $storedOtp->otp != $request->otp || $storedOtp->expires_at < now()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Code OTP invalide ou expiré. Veuillez demander un nouveau code OTP.'
-                ], 422);
+            // Vérifier l'authentification (OTP ou mot de passe)
+            if ($request->use_password) {
+                // Vérifier le mot de passe
+                $user = $request->user();
+                if (!Hash::check($request->password, $user->password)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Mot de passe incorrect. Veuillez réessayer.'
+                    ], 422);
+                }
+                \Log::info('Authentification par mot de passe réussie', [
+                    'user_id' => $user->id
+                ]);
+            } else {
+                // Vérifier l'OTP
+                $storedOtp = DB::table('withdrawal_otps')->where('user_id', $request->user()->id)->first();
+                \Log::info('Vérification OTP', [
+                    'stored_otp' => $storedOtp->otp ?? null,
+                    'request_otp' => $request->otp,
+                    'match' => ($storedOtp && $storedOtp->otp == $request->otp),
+                ]);
+                
+                if (!$storedOtp || $storedOtp->otp != $request->otp || $storedOtp->expires_at < now()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Code OTP invalide ou expiré. Veuillez demander un nouveau code OTP.'
+                    ], 422);
+                }
             }
 
             // Récupérer le portefeuille
