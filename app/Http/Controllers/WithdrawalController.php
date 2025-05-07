@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\WithdrawalRequest;
 use App\Models\WalletSystem;
+use App\Models\WalletSystemsTransaction;
 use App\Models\Wallet;
+use App\Models\TransactionFee;
 use App\Models\User;
+use App\Models\UserPack;
 use App\Models\Setting;
 use App\Notifications\WithdrawalOtpNotification;
 use App\Notifications\WithdrawalRequestCreated;
@@ -278,23 +281,17 @@ class WithdrawalController extends Controller
             $user = $request->user();
             $wallet = $user->wallet;
 
-            // Créer une transaction dans le wallet
-            $wallet->transactions()->create([
-                'type' => 'withdrawal',
-                'amount' => $request->total_amount,
+            $wallet->withdrawFunds($request->total_amount, "withdrawal", "pending", [
+                'withdrawal_request_id' => $withdrawalRequest->id,
+                'currency' => $request->currency,
+                'payment_method' => $request->payment_method,
+                'montant_a_retirer' => $request->amount,
+                'fee_percentage' => $request->fee_percentage,
+                'frais_de_retrait' => $request->withdrawal_fee,
+                'frais_de_commission' => $request->referral_commission,
+                'montant_total_a_payer' => $request->total_amount,
+                'payment_details' => $request->payment_details,
                 'status' => 'pending',
-                'metadata' => [
-                    'withdrawal_request_id' => $withdrawalRequest->id,
-                    'currency' => $request->currency,
-                    'payment_method' => $request->payment_method,
-                    'montant_a_retirer' => $request->amount,
-                    'fee_percentage' => $request->fee_percentage,
-                    'frais_de_retrait' => $request->withdrawal_fee,
-                    'frais_de_commission' => $request->referral_commission,
-                    'montant_total_a_payer' => $request->total_amount,
-                    'payment_details' => $request->payment_details,
-                    'status' => 'pending',
-                ]
             ]);
 
             DB::commit();
@@ -373,8 +370,13 @@ class WithdrawalController extends Controller
 
             DB::beginTransaction();
 
+            // Rembourser le montant au wallet de l'utilisateur
+            $user = $withdrawal->user;
+            $wallet = $user->wallet;
+            $wallet->balance += $withdrawal->amount;
+            $wallet->save();
+
             // Mettre à jour la transaction
-            \Log::info($withdrawal->user->wallet);
             $transaction = $withdrawal->user->wallet->transactions()
                 ->where('type', 'withdrawal')
                 ->where('metadata->withdrawal_request_id', $id)
@@ -424,6 +426,14 @@ class WithdrawalController extends Controller
             }
 
             DB::beginTransaction();
+
+            // Rembourser le montant au wallet de l'utilisateur si la demande est en attente
+            if ($withdrawal->status === 'pending') {
+                $user = $withdrawal->user;
+                $wallet = $user->wallet;
+                $wallet->balance += $withdrawal->amount;
+                $wallet->save();
+            }
 
             // Supprimer la transaction associée si elle existe
             $transaction = $withdrawal->user->wallet->transactions()
@@ -477,17 +487,80 @@ class WithdrawalController extends Controller
                 ], 400);
             }
 
+            if ($withdrawal->amount > $withdrawal->user->wallet->balance) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Le solde de ce compte est insuffisant pour effectuer ce retrait'
+                ], 400);
+            }
+
+            $fee_percentage = $withdrawal->payment_details['fee_percentage'];
+            $commission_fees = $withdrawal->payment_details['frais_de_commission'];
+            
+            $transactionFeeModel = TransactionFee::where('payment_method', $withdrawal->payment_method)
+                ->where('is_active', true);
+            
+            $transactionFee = $transactionFeeModel->first();
+            
+            // Recalculer les frais de transaction
+            $globalFeePercentage = (float) Setting::getValue('withdrawal_fee_percentage', 0);
+            $globalfees = ((float)$withdrawal->payment_details['montant_a_retirer']) * ($globalFeePercentage / 100);
+
+            $specificfees = 0;
+            if ($transactionFee) {
+                $specificfees = $transactionFee->calculateWithdrawalFee((float) $withdrawal->payment_details['montant_a_retirer'], "USD");
+            }
+            $frais_system = $globalfees - $specificfees; //frais qui resteront après paiement des frais de l'api et qui seront reversés dans le système
+            
+            //Implémenter le paiement API
             DB::beginTransaction();
 
-            // Mettre à jour la transaction
             $transaction = $withdrawal->user->wallet->transactions()
                 ->where('type', 'withdrawal')
                 ->where('metadata->withdrawal_request_id', $id)
                 ->first();
 
             if ($transaction) {
-                $transaction->status = 'approved';
+                $transaction->status = 'completed';
                 $transaction->save();
+            }
+
+            $walletsystem = WalletSystem::first();
+            if (!$walletsystem) {
+                $walletsystem = WalletSystem::create(['balance' => 0]);
+            }
+
+            if ($frais_system > 0) {
+                $walletsystem->addFunds(0, "sales", "completed", [
+                    "user" => $withdrawal->user->name, 
+                    "original_amount" => $withdrawal->payment_details['montant_a_retirer'],
+                    "original_currency" => "USD",
+                    "transaction_fees" => $globalfees,
+                    "transaction_percentage" => $globalFeePercentage,
+                    "frais_api" => $specificfees,
+                    "description" => "frais de transaction de ". $frais_system . " $ pour le retrait d'un montant de ". $withdrawal->payment_details['montant_a_retirer'] ." $ par le compte " . $withdrawal->user->account_id,
+                ]);
+            }
+
+            $walletsystem->deductFunds($withdrawal->payment_details['montant_a_retirer'], "withdrawal", "completed", [
+                "user" => $withdrawal->user->name, 
+                "original_amount" => $withdrawal->payment_details['montant_a_retirer'],
+                "original_currency" => "USD",
+                "transaction_fees" => $globalfees,
+                "transaction_percentage" => $globalFeePercentage,
+                "frais_api" => $specificfees,
+                "description" => "retrait de ". $withdrawal->payment_details['montant_a_retirer'] . " $ par le compte " . $withdrawal->user->account_id,
+            ]);
+
+            $firstuserpack = UserPack::where('user_id', $withdrawal->user->id)->first(); //récupérer le premier pack de l'utilisateur
+            $sponsor = $firstuserpack->sponsor;
+            if ($sponsor) {
+                $sponsor->wallet->addFunds($commission_fees, "commission", "completed", [
+                    "source" => $withdrawal->user->name, 
+                    "type" => "commission sur retrait",
+                    "montant" => $commission_fees,
+                    "description" => "commission de ". $commission_fees . " $ pour le retrait d'un montant de ". $withdrawal->payment_details['montant_a_retirer'] ." $ par votre filleul " . $withdrawal->user->name,
+                ]);
             }
 
             // Approuver la demande
@@ -544,18 +617,7 @@ class WithdrawalController extends Controller
             $wallet->balance += $withdrawal->amount;
             $wallet->save();
 
-            // Créer une transaction de remboursement
-            $wallet->transactions()->create([
-                'amount' => $withdrawal->amount,
-                'type' => 'refund',
-                'status' => 'completed',
-                'metadata' => [
-                    'source' => 'withdrawal_rejected',
-                    'withdrawal_request_id' => $withdrawal->id
-                ]
-            ]);
-
-            // Mettre à jour la transaction originale
+            // Mettre à jour la transaction
             $transaction = $wallet->transactions()
                 ->where('type', 'withdrawal')
                 ->where('metadata->withdrawal_request_id', $id)

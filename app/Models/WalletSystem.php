@@ -55,8 +55,8 @@ class WalletSystem extends Model
             $this->total_out += $amount;
             $this->save();
 
-            return WalletSystemsTransaction::create([
-                'system_wallet_id' => $this->id,
+            return WalletSystemTransaction::create([
+                'wallet_system_id' => $this->id,
                 'amount' => $amount,
                 'type' => $type,
                 'status' => $status,
