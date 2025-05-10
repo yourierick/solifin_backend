@@ -73,9 +73,9 @@ class TransactionFee extends Model
     public function calculateTransferFee(float $amount, $currency): float
     {
         //Convertir le montant fixe des frais dans la dévise de l'utilisateur lorsque ce n'est pas le USD
-        if ($currency !== "USD") {
-            $this->fee_fixed = $this->convertFromUSD($this->fee_fixed, $currency);
-        }
+        // if ($currency !== "USD") {
+        //     $this->fee_fixed = $this->convertFromUSD($this->fee_fixed, $currency);
+        // }
 
         $fee = $amount * ($this->transfer_fee_percentage / 100);
         

@@ -103,17 +103,21 @@ class PackController extends Controller
                 try {
                     // Appel à un service de conversion de devise
                     $amountInUSD = $this->convertToUSD($totalAmount, $paymentCurrency);
-                    $amountInUSD = round($amountInUSD, 0);
+                    $amountInUSD = round($amountInUSD, 2);
+                    $globalfees = $this->convertToUSD($globalfees, $paymentCurrency);
+                    $globalfees = round($globalfees, 2);
+                    $specificfees = $this->convertToUSD($specificfees, $paymentCurrency);
+                    $specificfees = round($specificfees, 2);
                 } catch (\Exception $e) {
-                    \Log::error('Erreur lors de la conversion de devise: ' . $e->getMessage());
-                    // Fallback: utiliser un taux de conversion fixe ou une estimation
-                    $amountInUSD = $this->estimateUSDAmount($totalAmount, $paymentCurrency);
+                    return response()->json([
+                        "success" => false, 
+                        "message" => "Erreur lors de la conversion de la dévise, veuillez utiliser le $"
+                    ]);
                 }
             }
             
             // Soustraire les frais de transaction s'ils sont inclus dans le montant
-            $feesInUSD = $this->convertToUSD($globalfees, $paymentCurrency);
-            $AmountInUSDWithoutSpecificFees = round($amountInUSD - $specificfees, 0);//Montant total à payer sans les frais de transaction spécifiques au moyen de paiement choisi
+            $AmountInUSDWithoutSpecificFees = round($amountInUSD - $specificfees, 2);//Montant total à payer sans les frais de transaction spécifiques au moyen de paiement choisi
             $netAmountInUSD = round($amountInUSD - $globalfees, 0);//Montant total à payer sans les frais de transaction globaux
             
             // Vérifier que le montant net est suffisant pour couvrir le coût du pack
@@ -152,19 +156,37 @@ class PackController extends Controller
                 }
 
                 // Déduire les fonds du wallet
-                $userWallet->withdrawFunds($amountInUSD, "sales", "completed", [
+                $userWallet->withdrawFunds($amountInUSD, "purchase", "completed", [
                     "pack_id" => $pack->id, 
                     "pack_name" => $pack->name, 
                     "duration" => $validated['duration_months'], 
-                    "payment_method" => $validated['payment_method'],
-                    "payment_details" => $validated['payment_details'] ?? [],
-                    "currency" => $validated['currency'],
-                    "original_amount" => $validated['amount'],
-                    "payment_type" => $validated['payment_type'],
-                    "fees" => $globalfees
+                    "Méthode de paiement" => $validated['payment_method'],
+                    "Détails de paiement" => $validated['payment_details'] ?? [],
+                    "Dévise" => $validated['currency'],
+                    "Montant original" => $validated['amount'],
+                    "Type de paiement" => $validated['payment_type'],
+                    "Frais globaux" => $globalfees,
                 ]);
             } else {
                 //implémenter le paiement API
+
+                $user->wallet->transactions()->create([
+                    "wallet_id" => $user->wallet->id,
+                    "type" => "purchase",
+                    "amount" => $amountInUSD,
+                    "status" => "completed",
+                    "metadata" => [
+                        "Opération" => "Renouvellement de pack",
+                        "Nom du pack" => $pack->name,
+                        "Durée de souscription" => $validated["duration_months"],
+                        "Méthode de paiement" => $validated['payment_method'],
+                        "Détails de paiement" => $validated['payment_details'],
+                        "Type de paiement" => $validated['payment_type'],
+                        "Montant net" => $validated['amount'],
+                        "Dévise" => $validated['currency'],
+                        "Frais de transaction" => $validated['fees']
+                    ]
+                ]);
             }
 
             // Ajouter le montant au wallet system (sans les frais)
@@ -173,17 +195,40 @@ class PackController extends Controller
                 $walletsystem = WalletSystem::create(['balance' => 0]);
             }
             
-            $walletsystem->addFunds($validated['payment_method'] !== "solifin-wallet" ? $AmountInUSDWithoutSpecificFees : 0, "sales", "completed", [
-                "user" => $user->name, 
-                "pack_id" => $pack->id, 
-                "pack_name" => $pack->name, 
-                "duration" => $validated['duration_months'], 
-                "payment_method" => $validated['payment_method'], 
-                "payment_details" => $validated['payment_details'] ?? [],
-                "currency" => $validated['currency'],
-                "original_amount" => $validated['amount'],
-                "fees" => $globalfees
-            ]);
+            if ($validated['payment_method'] === "solifin-wallet") {
+                $walletsystem->transactions()->create([
+                    'wallet_system_id' => $walletsystem->id,
+                    'amount' => $amountInUSD,
+                    'type' => 'sales',
+                    'status' => 'completed',
+                    'metadata' => [
+                        "user" => $user->name, 
+                        "pack_id" => $pack->id, 
+                        "pack_name" => $pack->name, 
+                        "Durée de souscription" => $validated['duration_months'], 
+                        "Méthode de paiement" => $validated['payment_method'], 
+                        "Détails de paiement" => $validated['payment_details'] ?? [],
+                        "Dévise" => $validated['currency'],
+                        "Montant original" => $validated['amount'],
+                        "Type de paiement" => $validated['payment_type'],
+                        "Frais globaux" => $globalfees,
+                        "Frais spécifiques" => $specificfees,
+                    ]
+                ]);
+            }else {
+                $walletsystem->addFunds($AmountInUSDWithoutSpecificFees, "sales", "completed", [
+                    "user" => $user->name, 
+                    "pack_id" => $pack->id, 
+                    "pack_name" => $pack->name, 
+                    "Durée de souscription" => $validated['duration_months'], 
+                    "Méthode de paiement" => $validated['payment_method'], 
+                    "Détails de paiement" => $validated['payment_details'] ?? [],
+                    "Dévise" => $validated['currency'],
+                    "Montant original" => $validated['amount'],
+                    "Frais globaux" => $globalfees,
+                    "Frais spécifiques" => $specificfees
+                ]);
+            }
 
             // on met à jour la date d'expiration
             $userPack->expiry_date = now()->addMonths($validated['duration_months']);
@@ -191,14 +236,31 @@ class PackController extends Controller
             $userPack->save();
 
             // Distribuer les commissions
-            \Log::info('Distributing commissions for user pack: ' . $validated['duration_months']);
             $this->processCommissions($userPack, $validated['duration_months']);
 
             DB::commit();
 
+            // Recharger le pack avec ses relations pour avoir les données complètes et à jour
+            $updatedUserPack = UserPack::with(['pack', 'sponsor'])
+                ->where('id', $userPack->id)
+                ->first();
+                
+            // Ajouter les informations du sponsor si disponible
+            $userPackData = $updatedUserPack->toArray();
+            if ($updatedUserPack->sponsor) {
+                $userPackData['sponsor_info'] = [
+                    'name' => $updatedUserPack->sponsor->name,
+                    'email' => $updatedUserPack->sponsor->email,
+                    'phone' => $updatedUserPack->sponsor->phone,
+                ];
+            }
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Pack renouvelé avec succès',
+                'data' => [
+                    'user_pack' => $userPackData
+                ]
             ]);
         } catch (\Exception $e) {
             DB::rollback();
@@ -260,17 +322,21 @@ class PackController extends Controller
                 try {
                     // Appel à un service de conversion de devise
                     $amountInUSD = $this->convertToUSD($totalAmount, $paymentCurrency);
-                    $amountInUSD = round($amountInUSD, 0);
+                    $amountInUSD = round($amountInUSD, 2);
+                    $globalfees = $this->convertToUSD($globalfees, $paymentCurrency);
+                    $globalfees = round($globalfees, 2);
+                    $specificfees = $this->convertToUSD($specificfees, $paymentCurrency);
+                    $specificfees = round($specificfees, 2);
                 } catch (\Exception $e) {
-                    \Log::error('Erreur lors de la conversion de devise: ' . $e->getMessage());
-                    // Fallback: utiliser un taux de conversion fixe ou une estimation
-                    $amountInUSD = $this->estimateUSDAmount($totalAmount, $paymentCurrency);
+                    return response()->json([
+                        "success" => false, 
+                        "message" => "Erreur lors de la conversion de la dévise, veuillez utiliser le $"
+                    ]);
                 }
             }
             
             // Soustraire les frais de transaction s'ils sont inclus dans le montant
-            $feesInUSD = $this->convertToUSD($globalfees, $paymentCurrency);
-            $AmountInUSDWithoutSpecificFees = round($amountInUSD - $specificfees, 0);//Montant total à payer sans les frais de transaction spécifiques au moyen de paiement choisi
+            $AmountInUSDWithoutSpecificFees = round($amountInUSD - $specificfees, 2);//Montant total à payer sans les frais de transaction spécifiques au moyen de paiement choisi
             $netAmountInUSD = round($amountInUSD - $globalfees, 0);//Montant total à payer sans les frais de transaction globaux
 
             // Vérifier que le montant net est suffisant pour couvrir le coût du pack
@@ -354,30 +420,38 @@ class PackController extends Controller
                     }
 
                     // Déduire le montant du wallet de l'utilisateur
-                    $userWallet->withdrawFunds($amountInUSD, "sales", "completed", ["pack_id"=>$pack->id, "pack_name"=>$pack->name, 
-                    "duration"=>$request->months, "payment_method"=>$request->payment_method, "payment_type"=>$request->payment_type, 
-                    "payment_details"=>$request->payment_details, "referral_code"=>$request->referralCode, "currency"=>$request->currency
+                    $userWallet->withdrawFunds($amountInUSD, "purchase", "completed", ["pack_id"=>$pack->id, "pack_name"=>$pack->name, 
+                    "Durée de souscription"=>$request->months, "Méthode de paiement"=>$request->payment_method, "Type de paiement"=>$request->payment_type, 
+                    "Détails de paiement"=>$request->payment_details, "Referral code"=>$request->referralCode, "Dévise"=>$request->currency
                     ]);
 
                     // Ajouter le montant au wallet system
-                    //vu que c'est le wallet qui paie, il n'y aura aucun ajout dans le wallet system, c'est pourquoi le 0.
+                    //vu que c'est le wallet qui paie, il n'y aura aucun ajout dans le wallet system.
                     $walletsystem = WalletSystem::first();
                     if (!$walletsystem) {
                         $walletsystem = WalletSystem::create(['balance' => 0]);
                     }
-                    $walletsystem->addFunds(0, "sales", "completed", [
-                        "user" => $validated["name"], 
-                        "pack_id" => $pack->id, 
-                        "payment_details" => $validated['payment_details'],
-                        "payment_method" => $paymentMethod,
-                        "payment_type" => $paymentType,
-                        "pack_name" => $pack->name, 
-                        "sponsor_code" => $validated['sponsor_code'], 
-                        "duration" => $validated['duration_months'],
-                        "original_amount" => $paymentAmount,
-                        "original_currency" => $paymentCurrency,
-                        "transaction_fees" => $globalfees,
-                        "converted_amount" => $netAmountInUSD,
+
+                    $walletsystem->transactions()->create([
+                        'wallet_system_id' => $walletsystem->id,
+                        'amount' => $amountInUSD,
+                        'type' => 'sales',
+                        'status' => 'completed',
+                        'metadata' => [
+                            "user" => $validated["name"], 
+                            "pack_id" => $pack->id, 
+                            "Détails de paiement" => $validated['payment_details'],
+                            "Méthode de paiement" => $paymentMethod,
+                            "Type de paiement" => $paymentType,
+                            "Nom du pack" => $pack->name, 
+                            "Code sponsor" => $validated['sponsor_code'], 
+                            "Durée de souscription" => $validated['duration_months'],
+                            "Montant original" => $paymentAmount,
+                            "Dévise originale" => $paymentCurrency,
+                            "Frais globaux" => $globalfees,
+                            "Montant converti" => $netAmountInUSD,
+                            "Frais spécifiques" => $specificfees
+                        ]
                     ]);
 
                 } else {
@@ -451,16 +525,17 @@ class PackController extends Controller
                     $walletsystem->addFunds($AmountInUSDWithoutSpecificFees, "sales", "completed", [
                         "user" => $validated["name"], 
                         "pack_id" => $pack->id, 
-                        "payment_details" => $validated['payment_details'],
-                        "payment_method" => $paymentMethod,
-                        "payment_type" => $paymentType,
-                        "pack_name" => $pack->name, 
-                        "sponsor_code" => $validated['sponsor_code'], 
-                        "duration" => $validated['duration_months'],
-                        "original_amount" => $paymentAmount,
-                        "original_currency" => $paymentCurrency,
-                        "transaction_fees" => $globalfees,
-                        "converted_amount" => $netAmountInUSD,
+                        "Détails de paiement" => $validated['payment_details'],
+                        "Méthode de paiement" => $paymentMethod,
+                        "Type de paiement" => $paymentType,
+                        "Nom du pack" => $pack->name, 
+                        "Code sponsor" => $validated['sponsor_code'], 
+                        "Durée de souscription" => $validated['duration_months'],
+                        "Montant total" => $paymentAmount,
+                        "Dévise originale" => $paymentCurrency,
+                        "Frais globaux" => $globalfees,
+                        "Montant net" => $netAmountInUSD,
+                        "Frais spécifique" => $specificfees
                     ]);
                 }
 
@@ -906,35 +981,35 @@ class PackController extends Controller
 
 
     //-------------------------------------FONCTION DE CONVERSION----------------------------------//
-    private function estimateUSDAmount($amount, $currency)
-    {
-        // Taux de conversion approximatifs (à mettre à jour régulièrement)
-        $rates = [
-            'EUR' => 1.09,
-            'GBP' => 1.27,
-            'CAD' => 0.73,
-            'AUD' => 0.66,
-            'JPY' => 0.0067,
-            'CHF' => 1.12,
-            'CNY' => 0.14,
-            'INR' => 0.012,
-            'BRL' => 0.19,
-            'ZAR' => 0.054,
-            'NGN' => 0.00065,
-            'GHS' => 0.071,
-            'XOF' => 0.0017,
-            'XAF' => 0.0017,
-            'CDF' => 0.0017,
-        ];
+    // private function estimateUSDAmount($amount, $currency)
+    // {
+    //     // Taux de conversion approximatifs (à mettre à jour régulièrement)
+    //     $rates = [
+    //         'EUR' => 1.09,
+    //         'GBP' => 1.27,
+    //         'CAD' => 0.73,
+    //         'AUD' => 0.66,
+    //         'JPY' => 0.0067,
+    //         'CHF' => 1.12,
+    //         'CNY' => 0.14,
+    //         'INR' => 0.012,
+    //         'BRL' => 0.19,
+    //         'ZAR' => 0.054,
+    //         'NGN' => 0.00065,
+    //         'GHS' => 0.071,
+    //         'XOF' => 0.0017,
+    //         'XAF' => 0.0017,
+    //         'CDF' => 0.0017,
+    //     ];
         
-        if (isset($rates[$currency])) {
-            return $amount * $rates[$currency];
-        }
+    //     if (isset($rates[$currency])) {
+    //         return $amount * $rates[$currency];
+    //     }
         
-        // Si la devise n'est pas dans la liste, utiliser un taux par défaut
-        //\Log::warning("Devise non reconnue pour la conversion: $currency. Utilisation du taux par défaut.");
-        return $amount;
-    }
+    //     // Si la devise n'est pas dans la liste, utiliser un taux par défaut
+    //     //\Log::warning("Devise non reconnue pour la conversion: $currency. Utilisation du taux par défaut.");
+    //     return $amount;
+    // }
     
     /**
      * Convertit un montant d'une devise en USD
@@ -958,8 +1033,5 @@ class PackController extends Controller
         } catch (\Exception $e) {
             \Log::error('Erreur lors de l\'appel à l\'API de conversion: ' . $e->getMessage());
         }
-        
-        // Si l'API échoue, utiliser l'estimation
-        return $this->estimateUSDAmount($amount, $currency);
     }
 } 

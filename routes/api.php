@@ -11,7 +11,6 @@ use App\Http\Controllers\Auth\VerificationController;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Cache\RateLimiting\Limit;
 use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\WithdrawalRequestController;
 use App\Http\Controllers\Admin\AdvertisementValidationController;
 use App\Http\Controllers\Admin\BusinessOpportunityValidationController;
 use App\Http\Controllers\Admin\JobOfferValidationController;
@@ -72,6 +71,9 @@ Route::middleware('throttle:api')->group(function () {
     })->middleware(['auth:sanctum', 'throttle:6,1']);
 });
 
+// Route publique pour vérifier une invitation par son code
+Route::post('/check-invitation', [\App\Http\Controllers\ReferralInvitationController::class, 'checkInvitation']);
+
 // Routes protégées
 Route::middleware('auth:sanctum')->group(function () {
     // Route pour vérifier l'authentification
@@ -124,7 +126,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/packs/purchase_a_new_pack', [\App\Http\Controllers\User\PackController::class, 'purchase_a_new_pack']);
 
     // Routes pour les demandes de retrait
-    Route::post('/withdrawal/send-otp', [WithdrawalController::class, 'sendOtp']);
     Route::post('/withdrawal/request/{walletId}', [WithdrawalController::class, 'request']);
     Route::post('/withdrawal/request/{id}/cancel', [WithdrawalController::class, 'cancel']);
     Route::get('/withdrawal/referral-commission', [WithdrawalController::class, 'getReferralCommissionPercentage']);
@@ -217,10 +218,15 @@ Route::middleware('auth:sanctum')->group(function () {
     //Transfert de fonds entre wallets
     Route::post('/funds-transfer', [App\Http\Controllers\User\WalletUserController::class, 'funds_transfer']);
     Route::get('/recipient-info/{account_id}', [App\Http\Controllers\User\WalletUserController::class, 'getRecipientInfo']);
-    Route::get('/transfer-fee-percentage', [App\Http\Controllers\User\WalletUserController::class, 'getTransferFeePercentage']);
+    Route::get('/sending-fee-percentage', [App\Http\Controllers\User\WalletUserController::class, 'getSendingFeePercentage']);
 
     // Route pour récupérer le prix du boost
     Route::get('/boost-price', [\App\Http\Controllers\BoostPriceController::class, 'getBoostPrice']);
+    
+    // Routes pour les invitations de parrainage
+    Route::get('/invitations/statistics', [\App\Http\Controllers\ReferralInvitationController::class, 'statistics']);
+    Route::apiResource('/referral-invitations', \App\Http\Controllers\ReferralInvitationController::class);
+    Route::post('/referral-invitations/{id}/resend', [\App\Http\Controllers\ReferralInvitationController::class, 'resend']);
 });
 
 // Routes admin
@@ -265,9 +271,9 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/withdrawal/requests/{id}/approve', [WithdrawalController::class, 'approve']);
     Route::post('/withdrawal/requests/{id}/reject', [WithdrawalController::class, 'reject']);
     Route::delete('/withdrawal/requests/{id}', [WithdrawalController::class, 'delete']);
-    Route::get('withdrawal-requests', [WithdrawalRequestController::class, 'index']);
-    Route::get('withdrawal-requests/{withdrawalRequest}', [WithdrawalRequestController::class, 'show']);
-    Route::post('withdrawal-requests/{withdrawalRequest}/process', [WithdrawalRequestController::class, 'process']);
+    //Route::get('withdrawal-requests', [WithdrawalRequestController::class, 'index']);
+    //Route::get('withdrawal-requests/{withdrawalRequest}', [WithdrawalRequestController::class, 'show']);
+    //Route::post('withdrawal-requests/{withdrawalRequest}/process', [WithdrawalRequestController::class, 'process']);
 
     // Routes de gestion des commissions
     Route::get('/packs/{pack}/commission-rates', [PackController::class, 'getCommissionRates']);
@@ -308,6 +314,16 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::delete('/business-opportunities/{id}', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'destroy']);
 
     Route::post('/wallet/funds-transfer', [App\Http\Controllers\Admin\WalletController::class, 'funds_transfer']);
+    
+    // Routes pour le tableau de bord administratif
+    Route::get('/dashboard/cards', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getCards']);
+    Route::get('/dashboard/invitations', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getInvitationsData']);
+    Route::get('/dashboard/network', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getNetworkOverview']);
+    Route::get('/dashboard/members', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getMembersManagement']);
+    Route::get('/dashboard/referrals', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getReferralSystem']);
+    Route::get('/dashboard/transactions', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getTransactions']);
+    Route::get('/dashboard/pack-stats', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getPackStats']);
+    Route::get('/dashboard/data', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getDashboardData']);
     
     // Routes pour la gestion des pays autorisés
     Route::get('/settings/countries', [App\Http\Controllers\Admin\CountrySettingsController::class, 'index']);

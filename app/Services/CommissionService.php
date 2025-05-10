@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\UserPack;
+use App\Models\WalletSystem;
 use App\Models\CommissionRate;
 use App\Models\Commission;
 use App\Models\User;
@@ -18,6 +19,7 @@ class CommissionService
         $level = 1;
         $maxLevel = 4; // Maximum 4 générations
 
+        // Ajouter le montant au wallet system (sans les frais)
         while ($currentSponsor && $level <= $maxLevel) {
             // Récupérer le taux de commission pour ce niveau
             $rate = CommissionRate::where('pack_id', $purchase->pack_id)
@@ -30,7 +32,7 @@ class CommissionService
 
                 //Vérifier si le pack du sponsor est actif
                 $checkPack = $currentSponsor->packs()->where('pack_id', $purchase->pack_id)->first();
-                if ($checkPack->status === "active") {
+                if ($checkPack->status == "active") {
                     // Créer la commission
                     $commission = Commission::create([
                         'user_id' => $currentSponsor->id,
@@ -86,13 +88,29 @@ class CommissionService
 
             // Mettre à jour le solde du portefeuille
             $wallet->addFunds($commission->amount, "commission", "completed", [ "source_id"=>$commission->source_user_id, "source"=>$commission->source_user->name, 
-            "pack_name"=>$commission->pack->name, "pack_id"=>$commission->pack->id, "duration"=>$duration_months]);
-    
+            "pack_name"=>$commission->pack->name, "pack_id"=>$commission->pack->id, "duration"=>$duration_months]); 
 
             // Marquer la commission comme traitée
             $commission->update([
                 'status' => 'completed',
                 'processed_at' => now()
+            ]);
+
+            $walletsystem = WalletSystem::first();
+            if (!$walletsystem) {
+                $walletsystem = WalletSystem::create(['balance' => 0]);
+            }
+
+            $walletsystem->transactions()->create([
+                'wallet_system_id' => $walletsystem->id,
+                'amount' => $commission->amount,
+                'type' => 'commission de parrainage',
+                'status' => 'completed',
+                'metadata' => [
+                    "user" => $commission->source_user->name, 
+                    "Opération" => "Commission de parrainage",
+                    "Montant" => $commission->amount, 
+                ]
             ]);
 
             return true;

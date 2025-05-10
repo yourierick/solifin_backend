@@ -72,33 +72,6 @@ class WalletUserController extends Controller
             ], 500);
         }
     }
-    
-
-    public function withdraw(Request $request)
-    {
-        try {
-            $request->validate([
-                'wallet_id' => 'required',
-                'wallet_type' => 'required|in:admin,system',
-                'payment_method' => 'required',
-                'amount' => 'required|numeric|min:0',
-            ]);
-
-            // Logique de retrait à implémenter selon vos besoins
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Demande de retrait enregistrée avec succès'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la demande de retrait',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
 
     /**
      * Transfert de fonds entre wallets
@@ -157,25 +130,46 @@ class WalletUserController extends Controller
                 ], 400);
             }
 
-            if ($request->fee_amount > 0) {
-                // Ajouter la transaction au wallet system
-                $walletsystem = WalletSystem::first();
-                if (!$walletsystem) {
-                    $walletsystem = WalletSystem::create(['balance' => 0]);
-                }
-                $walletsystem->addFunds(0, "sales", "completed", [
-                    "user" => $user->name, 
-                    "original_amount" => $request->original_amount,
-                    "original_currency" => "USD",
-                    "transaction_fees" => $request->fee_amount,
-                    "transaction_percentage" => $request->fee_percentage,
-                    "description" => "frais de transfert de ". $request->fee_amount . " $ pour le transfert d'un montant de ". $request->amount-$request->fee_amount ." $ par le compte " . $user->account_id . " au compte " . $request->recipient_account_id,
-                ]);
-            }
-
             $userWallet->withdrawFunds($request->amount, "transfer", "completed", ["bénéficiaire" => $recipientWallet->user->name, "montant"=>$request->original_amount, "description"=>$request->description]);
             $recipientWallet->addFunds($request->original_amount, "reception", "completed", ["créditeur" => $userWallet->user->name, "montant"=>$request->original_amount, "description"=>$request->description]);
 
+            $walletsystem = WalletSystem::first();
+            if (!$walletsystem) {
+                $walletsystem = WalletSystem::create(['balance' => 0]);
+            }
+
+            $walletsystem->transactions()->create([
+                'wallet_system_id' => $walletsystem->id,
+                'amount' => $request->original_amount,
+                'type' => "transfert des fonds",
+                'status' => "completed",
+                'metadata' => [
+                    "user" => $user->name, 
+                    "Montant original" => $request->original_amount,
+                    "Dévise original" => "USD",
+                    "Frais de transaction" => $request->fee_amount,
+                    "Pourcentage de transaction" => $request->fee_percentage,
+                    "Déscription" => "Transfert de ". $request->original_amount . "$ par le compte " . $user->account_id . " au compte " . $request->recipient_account_id,
+                ]
+            ]);
+
+            if ($request->fee_amount > 0) {
+                // Ajouter la transaction au wallet system
+                $walletsystem->transactions()->create([
+                    'wallet_system_id' => $walletsystem->id,
+                    'amount' => $request->fee_amount,
+                    'type' => "frais de transfert",
+                    'status' => "completed",
+                    'metadata' => [
+                        "user" => $user->name, 
+                        "Montant original" => $request->original_amount,
+                        "Dévise original" => "USD",
+                        "Frais de transaction" => $request->fee_amount,
+                        "Pourcentage de transaction" => $request->fee_percentage,
+                        "Déscription" => "frais de transfert de ". $request->fee_amount . " $ pour le transfert d'un montant de ". $request->original_amount ." $ par le compte " . $user->account_id . " au compte " . $request->recipient_account_id,
+                    ]
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -221,7 +215,7 @@ class WalletUserController extends Controller
      * 
      * @return \Illuminate\Http\JsonResponse
      */
-    public function getTransferFeePercentage()
+    public function getSendingFeePercentage()
     {
         $feePercentage = \App\Models\Setting::where('key', 'sending_fee_percentage')->first();
         

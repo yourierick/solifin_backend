@@ -5,13 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\WithdrawalRequest;
 use App\Models\WalletSystem;
-use App\Models\WalletSystemsTransaction;
 use App\Models\Wallet;
-use App\Models\TransactionFee;
 use App\Models\User;
-use App\Models\UserPack;
 use App\Models\Setting;
-use App\Notifications\WithdrawalOtpNotification;
 use App\Notifications\WithdrawalRequestCreated;
 use App\Notifications\WithdrawalRequestProcessed;
 use Illuminate\Http\Request;
@@ -20,21 +16,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
-use Vonage\Client;
-use Vonage\Client\Credentials\Basic;
-use Vonage\SMS\Message\SMS;
 
 class WithdrawalController extends Controller
 {
-    protected $vonageClient;
-
     public function __construct()
     {
-        $basic = new \Vonage\Client\Credentials\Basic(
-            config('services.vonage.key'),
-            config('services.vonage.secret')
-        );
-        $this->vonageClient = new \Vonage\Client($basic);
+        // Constructeur simplifié - Service Vonage supprimé
     }
 
     protected function formatPhoneNumber($phone)
@@ -55,114 +42,6 @@ class WithdrawalController extends Controller
     }
 
 
-    public function sendOtp(Request $request)
-    {
-        try {
-            $validator = Validator::make($request->all(), [
-                'phone_number' => 'required_if:payment_type,mobile-money',
-                'payment_method' => 'required|string',
-                'payment_type' => 'required|string|in:mobile-money,bank-transfer,money-transfer,credit-card',
-                'amount' => 'required|numeric|min:0',
-                'currency' => 'required|string',
-                'withdrawal_fee' => 'required|numeric',
-                'referral_commission' => 'required|numeric',
-                'total_amount' => 'required|numeric',
-                'fee_percentage' => 'required|numeric',
-                'account_name' => 'required_if:payment_type,credit-card',
-                'account_number' => 'required_if:payment_type,bank-transfer',
-                'bank_name' => 'required_if:payment_type,bank-transfer',
-                'id_type' => 'required_if:payment_type,money-transfer',
-                'id_number' => 'required_if:payment_type,money-transfer',
-                'full_name' => 'required_if:payment_type,money-transfer',
-                'recipient_country' => 'required_if:payment_type,money-transfer',
-                'recipient_city' => 'required_if:payment_type,money-transfer',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation error',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            $user = $request->user();
-            
-            // Vérifier le format du numéro de téléphone si présent
-            if ($request->has('phone_number') && !empty($request->phone_number)) {
-                $this->formatPhoneNumber($request->phone_number);
-            }
-
-            //Vérifier que l'utilisateur a un numéro enregistré et valide
-            if (!$user->phone) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Veuillez d\'abord enregistrer votre numéro de téléphone dans votre profil'
-                ], 400);
-            }
-
-            $formatted_phone = $this->formatPhoneNumber($user->phone);
-
-            // Générer un OTP
-            $otp = rand(100000, 999999);
-            
-            // Stocker l'OTP dans la base de données au lieu de la session
-            DB::table('withdrawal_otps')->updateOrInsert(
-                ['user_id' => $user->id],
-                [
-                    'otp' => $otp,
-                    'expires_at' => now()->addMinutes(1),
-                    'created_at' => now(),
-                    'updated_at' => now()
-                ]
-            );
-            
-            Log::info('OTP généré', ['otp' => $otp, 'user_id' => $user->id]);
-
-            // Envoyer l'OTP par email
-            try {
-                $user->notify(new WithdrawalOtpNotification($otp));
-            } catch (\Exception $e) {
-                throw $e;
-            }
-
-            // Envoyer l'OTP par SMS
-            try {
-                $message = "Votre code OTP pour le retrait est : $otp pour votre demande de retrait SOLIFIN au numéro: " . json_encode($request->payment_details);
-                
-                $response = $this->vonageClient->sms()->send(
-                    new \Vonage\SMS\Message\SMS(
-                        $formatted_phone,
-                        config('services.vonage.sms_from', 'SOLIFIN'),
-                        $message
-                    )
-                );
-
-            } catch (\Exception $e) {
-                Log::error('Erreur Vonage', [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ]);
-                throw $e; // Remonter l'erreur pour la gérer plus haut
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Code OTP envoyé par email et SMS',
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Erreur générale lors de l\'envoi du code OTP', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de l\'envoi du code OTP: ' . $e->getMessage(),
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
     public function request(Request $request, $walletId)
     {
         \Log::info('Tentative de retrait - Début', [
@@ -179,9 +58,7 @@ class WithdrawalController extends Controller
                 'payment_type' => 'required|string|in:mobile-money,bank-transfer,money-transfer,credit-card',
                 'amount' => 'required|numeric|min:0',
                 'currency' => 'required|string',
-                'otp' => 'required_without:use_password',
-                'password' => 'required_if:use_password,true',
-                'use_password' => 'sometimes|boolean',
+                'password' => 'required',
                 'withdrawal_fee' => 'required|numeric',
                 'referral_commission' => 'required|numeric',
                 'total_amount' => 'required|numeric',
@@ -218,35 +95,17 @@ class WithdrawalController extends Controller
                 $this->formatPhoneNumber($request->phone_number);
             }
 
-            // Vérifier l'authentification (OTP ou mot de passe)
-            if ($request->use_password) {
-                // Vérifier le mot de passe
-                $user = $request->user();
-                if (!Hash::check($request->password, $user->password)) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Mot de passe incorrect. Veuillez réessayer.'
-                    ], 422);
-                }
-                \Log::info('Authentification par mot de passe réussie', [
-                    'user_id' => $user->id
-                ]);
-            } else {
-                // Vérifier l'OTP
-                $storedOtp = DB::table('withdrawal_otps')->where('user_id', $request->user()->id)->first();
-                \Log::info('Vérification OTP', [
-                    'stored_otp' => $storedOtp->otp ?? null,
-                    'request_otp' => $request->otp,
-                    'match' => ($storedOtp && $storedOtp->otp == $request->otp),
-                ]);
-                
-                if (!$storedOtp || $storedOtp->otp != $request->otp || $storedOtp->expires_at < now()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Code OTP invalide ou expiré. Veuillez demander un nouveau code OTP.'
-                    ], 422);
-                }
+            // Vérifier l'authentification (mot de passe)
+            $user = $request->user();
+            if (!Hash::check($request->password, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mot de passe incorrect. Veuillez réessayer.'
+                ], 422);
             }
+            \Log::info('Authentification par mot de passe réussie', [
+                'user_id' => $user->id
+            ]);
 
             // Récupérer le portefeuille
             $wallet = Wallet::findOrFail($walletId);
@@ -281,17 +140,18 @@ class WithdrawalController extends Controller
             $user = $request->user();
             $wallet = $user->wallet;
 
+            //Géler le montant à retirer du wallet de l'utilisateur
             $wallet->withdrawFunds($request->total_amount, "withdrawal", "pending", [
                 'withdrawal_request_id' => $withdrawalRequest->id,
-                'currency' => $request->currency,
-                'payment_method' => $request->payment_method,
-                'montant_a_retirer' => $request->amount,
-                'fee_percentage' => $request->fee_percentage,
-                'frais_de_retrait' => $request->withdrawal_fee,
-                'frais_de_commission' => $request->referral_commission,
-                'montant_total_a_payer' => $request->total_amount,
-                'payment_details' => $request->payment_details,
-                'status' => 'pending',
+                'Dévise' => $request->currency,
+                'Méthode de paiement' => $request->payment_method,
+                'Montant à rétirer' => $request->amount,
+                'Pourcentage des frais' => $request->fee_percentage,
+                'Frais de retrait' => $request->withdrawal_fee,
+                'Frais de commission' => $request->referral_commission,
+                'Montant total à payer' => $request->total_amount,
+                'Détails de paiement' => $request->payment_details,
+                'Statut' => 'En attente',
             ]);
 
             DB::commit();
@@ -370,13 +230,8 @@ class WithdrawalController extends Controller
 
             DB::beginTransaction();
 
-            // Rembourser le montant au wallet de l'utilisateur
-            $user = $withdrawal->user;
-            $wallet = $user->wallet;
-            $wallet->balance += $withdrawal->amount;
-            $wallet->save();
-
             // Mettre à jour la transaction
+            \Log::info($withdrawal->user->wallet);
             $transaction = $withdrawal->user->wallet->transactions()
                 ->where('type', 'withdrawal')
                 ->where('metadata->withdrawal_request_id', $id)
@@ -426,14 +281,6 @@ class WithdrawalController extends Controller
             }
 
             DB::beginTransaction();
-
-            // Rembourser le montant au wallet de l'utilisateur si la demande est en attente
-            if ($withdrawal->status === 'pending') {
-                $user = $withdrawal->user;
-                $wallet = $user->wallet;
-                $wallet->balance += $withdrawal->amount;
-                $wallet->save();
-            }
 
             // Supprimer la transaction associée si elle existe
             $transaction = $withdrawal->user->wallet->transactions()
@@ -531,35 +378,54 @@ class WithdrawalController extends Controller
             }
 
             if ($frais_system > 0) {
-                $walletsystem->addFunds(0, "sales", "completed", [
-                    "user" => $withdrawal->user->name, 
-                    "original_amount" => $withdrawal->payment_details['montant_a_retirer'],
-                    "original_currency" => "USD",
-                    "transaction_fees" => $globalfees,
-                    "transaction_percentage" => $globalFeePercentage,
-                    "frais_api" => $specificfees,
-                    "description" => "frais de transaction de ". $frais_system . " $ pour le retrait d'un montant de ". $withdrawal->payment_details['montant_a_retirer'] ." $ par le compte " . $withdrawal->user->account_id,
+                $walletsystem->transactions()->create([
+                    'type' => 'frais de retrait',
+                    'amount' => $frais_system,
+                    'status' => 'completed',
+                    'metadata' => [
+                        'user' => $withdrawal->user->name,
+                        'Montant original' => $withdrawal->payment_details['montant_a_retirer'],
+                        'Dévise originale' => "USD",
+                        'Frais de transaction' => $globalfees,
+                        'Pourcentage global de transaction' => $globalFeePercentage,
+                        'Frais API' => $specificfees,
+                        'Déscription' => "frais de transaction de " . $frais_system . " $ pour le retrait d'un montant de " . $withdrawal->payment_details['montant_a_retirer'] . " $ par le compte " . $withdrawal->user->account_id,
+                    ]
                 ]);
             }
 
             $walletsystem->deductFunds($withdrawal->payment_details['montant_a_retirer'], "withdrawal", "completed", [
                 "user" => $withdrawal->user->name, 
-                "original_amount" => $withdrawal->payment_details['montant_a_retirer'],
-                "original_currency" => "USD",
-                "transaction_fees" => $globalfees,
-                "transaction_percentage" => $globalFeePercentage,
-                "frais_api" => $specificfees,
-                "description" => "retrait de ". $withdrawal->payment_details['montant_a_retirer'] . " $ par le compte " . $withdrawal->user->account_id,
+                "Montant original" => $withdrawal->payment_details['montant_a_retirer'],
+                "Dévise originale" => "USD",
+                "Frais de transaction" => $globalfees,
+                "Pourcentage global de transaction" => $globalFeePercentage,
+                "Frais API" => $specificfees,
+                "Description" => "retrait de ". $withdrawal->payment_details['montant_a_retirer'] . " $ par le compte " . $withdrawal->user->account_id,
             ]);
 
             $firstuserpack = UserPack::where('user_id', $withdrawal->user->id)->first(); //récupérer le premier pack de l'utilisateur
             $sponsor = $firstuserpack->sponsor;
             if ($sponsor) {
-                $sponsor->wallet->addFunds($commission_fees, "commission", "completed", [
-                    "source" => $withdrawal->user->name, 
-                    "type" => "commission sur retrait",
-                    "montant" => $commission_fees,
-                    "description" => "commission de ". $commission_fees . " $ pour le retrait d'un montant de ". $withdrawal->payment_details['montant_a_retirer'] ." $ par votre filleul " . $withdrawal->user->name,
+                $sponsor->wallet->addFunds($commission_fees, "commission de retrait", "completed", [
+                    "Source" => $withdrawal->user->name, 
+                    "Type" => "commission de retrait",
+                    "Montant" => $commission_fees,
+                    "Déscription" => "commission de ". $commission_fees . " $ pour le retrait d'un montant de ". $withdrawal->payment_details['montant_a_retirer'] ." $ par votre filleul " . $withdrawal->user->name,
+                ]);
+
+                $walletsystem->transactions()->create([
+                    "wallet_system_id" => $walletsystem->id,
+                    'amount' => $commission_fees,
+                    'type' => "commission de retrait",
+                    'status' => "completed",
+                    'metadata' => [
+                        "Type de transaction" => "Commission de retrait",
+                        "Source" => $withdrawal->user->name,
+                        "Bénéficiaire" => $sponsor->name,
+                        "Montant" => $commission_fees,
+                        "Déscription" => "commission de ". $commission_fees . " $ pour le retrait d'un montant de ". $withdrawal->payment_details['montant_a_retirer'] ." $ par votre filleul " . $withdrawal->user->name,
+                    ]
                 ]);
             }
 

@@ -50,9 +50,8 @@ class TransactionFeeApiController extends Controller
      */
     public function calculateTransferFee(Request $request)
     {
-        $amount = $request->input('amount');
-        $currency = $request->input('currency', 'USD');
-
+        $amount = $request->input('amount', 0);
+        
         // Récupérer le paramètre global transfer_fee_percentage depuis les paramètres du système
         $globalFeePercentage = (float) Setting::getValue('transfer_fee_percentage', 0);
 
@@ -64,8 +63,6 @@ class TransactionFeeApiController extends Controller
             'fee' => round($fee, 2),
             'percentage' => $globalFeePercentage,
             'total' => round($total, 2),
-            'payment_method' => 'global',
-            'payment_type' => null
         ]);
     }
     
@@ -77,16 +74,7 @@ class TransactionFeeApiController extends Controller
      */
     public function calculateWithdrawalFee(Request $request)
     {
-        $paymentMethod = $request->input('payment_method');
-        $paymentType = $request->input('payment_type', null);
         $amount = $request->input('amount');
-        
-        if (!$paymentMethod || !$amount) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Les paramètres payment_method et amount sont requis'
-            ], 400);
-        }
         
         // Récupérer le paramètre global withdrawal_fee_percentage depuis les paramètres du système
         $globalFeePercentage = 0; // Valeur par défaut si le paramètre n'est pas défini

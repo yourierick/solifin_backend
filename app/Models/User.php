@@ -40,6 +40,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'pack_de_publication_id',
         'is_admin',
         'email_verified_at',
+        'acquisition_source', // Comment l'utilisateur a connu SOLIFIN
     ];
 
     /**

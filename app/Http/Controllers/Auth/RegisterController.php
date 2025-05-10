@@ -8,6 +8,7 @@ use App\Models\UserPack;
 use App\Models\Wallet;
 use App\Models\WalletSystem;
 use App\Models\Pack;
+use App\Models\ReferralInvitation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -19,12 +20,20 @@ use Illuminate\Support\Facades\DB;
 use App\Services\CommissionService;
 use App\Models\ExchangeRates;
 use App\Notifications\VerifyEmailWithCredentials;
+use App\Notifications\ReferralInvitationConverted;
+use Carbon\Carbon;
+use App\Models\Setting;
+
 
 class RegisterController extends Controller
 {
     public function register(Request $request, $pack_id)
     {
         try {
+            \Log::info($request->all());
+            return response()->json([
+                "succes" => false,
+            ]);
             // Valider les données
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
@@ -34,6 +43,7 @@ class RegisterController extends Controller
                 'phone' => 'required|string',
                 'whatsapp' => 'nullable|string',
                 'sponsor_code' => 'required|exists:user_packs,referral_code',
+                'invitation_code' => 'nullable|string',
                 'duration_months' => 'required|integer|min:1',
                 'payment_method' => 'required|string',
                 'payment_type' => 'required|string',
@@ -46,6 +56,7 @@ class RegisterController extends Controller
                 'amount' => 'required|numeric',
                 'fees' => 'required|numeric',
                 'phoneNumber' => 'nullable|string',
+                'acquisition_source' => 'nullable|string',
             ]);
 
             DB::beginTransaction();
@@ -56,13 +67,17 @@ class RegisterController extends Controller
             $paymentMethod = $validated['payment_method']; // Méthode spécifique (visa, m-pesa, etc.)
             $paymentType = $validated['payment_type']; // Type général (credit-card, mobile-money, etc.)
             $paymentAmount = $validated['amount']; // Montant sans les frais
-            $paymentCurrency = $validated['currency'] ?? 'USD';
+            $paymentCurrency = $validated['currency'];
             $paymentDetails = $validated['payment_details'] ?? [];
-            
+
             // Normaliser le nom de la méthode de paiement si c'est wallet
             if ($paymentMethod === 'wallet') {
                 $paymentMethod = 'solifin-wallet';
             }
+
+            // Recalculer les frais globaux de transaction
+            $globalFeePercentage = (float) Setting::getValue('transfer_fee_percentage', 0);
+            $globalfees = ((float)$paymentAmount) * ($globalFeePercentage / 100);
 
             // Recalculer les frais de transaction côté backend pour éviter les manipulations côté frontend
             // Récupérer les frais de transaction pour cette méthode de paiement spécifique
@@ -71,17 +86,14 @@ class RegisterController extends Controller
             
             $transactionFee = $transactionFeeModel->first();
             
-            // Calculer les frais de transaction
-            $transactionFees = 0;
+            // Calculer les frais de transaction spécifiques à la méthode de paiement
+            $specificfees = 0;
             if ($transactionFee) {
-                $transactionFees = $transactionFee->calculateTransferFee((float) $paymentAmount, $paymentCurrency);
-                \Log::info('Frais de transaction recalculés: ' . $transactionFees . ' pour la méthode ' . $paymentMethod);
-            } else {
-                \Log::warning('Aucun frais de transaction trouvé pour la méthode ' . $paymentMethod);
+                $specificfees = $transactionFee->calculateTransferFee((float) $paymentAmount, $paymentCurrency);
             }
             
             // Montant total incluant les frais
-            $totalAmount = $paymentAmount + $transactionFees;
+            $totalAmount = $paymentAmount + $globalfees;
             
             // Si la devise n'est pas en USD, convertir le montant en USD (devise de base)
             $amountInUSD = $totalAmount;
@@ -89,23 +101,26 @@ class RegisterController extends Controller
                 try {
                     // Appel à un service de conversion de devise
                     $amountInUSD = $this->convertToUSD($totalAmount, $paymentCurrency);
-                    $amountInUSD = round($amountInUSD, 0);
+                    $amountInUSD = round($amountInUSD, 2);
+                    $globalfees = $this->convertToUSD($globalfees, $paymentCurrency);
+                    $globalfees = round($globalfees, 2);
+                    $specificfees = $this->convertToUSD($specificfees, $paymentCurrency);
+                    $specificfees = round($specificfees, 2);
                 } catch (\Exception $e) {
-                    \Log::error('Erreur lors de la conversion de devise: ' . $e->getMessage());
-                    // Fallback: utiliser un taux de conversion fixe ou une estimation
-                    $amountInUSD = $this->estimateUSDAmount($totalAmount, $paymentCurrency);
+                    return response()->json([
+                        "success" => false, 
+                        "message" => "Erreur lors de la conversion de la dévise, veuillez utiliser le $"
+                    ]);
                 }
             }
             
-            // Soustraire les frais de transaction s'ils sont inclus dans le montant
-            $feesInUSD = $this->convertToUSD($transactionFees, $paymentCurrency);
-            $netAmountInUSD = round($amountInUSD - $feesInUSD, 0);
+           // Soustraire les frais de transaction s'ils sont inclus dans le montant
+           $AmountInUSDWithoutSpecificFees = round($amountInUSD - $specificfees, 2);//Montant total à payer sans les frais de transaction spécifiques au moyen de paiement choisi
+           $netAmountInUSD = round($amountInUSD - $globalfees, 0);//Montant total à payer sans les frais de transaction
             
             // Vérifier que le montant net est suffisant pour couvrir le coût du pack
             $packCost = $pack->price * $validated['duration_months'];
 
-            \Log::info($netAmountInUSD);
-            \Log::info($packCost);
             if ($netAmountInUSD < $packCost) {
                 return response()->json([
                     'success' => false,
@@ -117,19 +132,20 @@ class RegisterController extends Controller
 
             // Enregistrer le paiement dans le système
             $walletsystem = WalletSystem::first();
-            $walletsystem->addFunds($validated['payment_method'] !== "solifin-wallet" ? $netAmountInUSD : $amountInUSD, "sales", "completed", [
+            $walletsystem->addFunds($AmountInUSDWithoutSpecificFees, "sales", "completed", [
                 "user" => $validated["name"], 
                 "pack_id" => $pack->id, 
-                "payment_details" => $validated['payment_details'],
-                "payment_method" => $paymentMethod,
-                "payment_type" => $paymentType,
-                "pack_name" => $pack->name, 
-                "sponsor_code" => $validated['sponsor_code'], 
-                "duration" => $validated['duration_months'],
-                "original_amount" => $paymentAmount,
-                "original_currency" => $paymentCurrency,
-                "transaction_fees" => $transactionFees,
-                "converted_amount" => $netAmountInUSD,
+                "Détails de paiement" => $validated['payment_details'],
+                "Méthode de paiement" => $paymentMethod,
+                "Type de paiement" => $paymentType,
+                "Nom du pack" => $pack->name, 
+                "Code sponsor" => $validated['sponsor_code'], 
+                "Duration" => $validated['duration_months'],
+                "Montant Original" => $paymentAmount,
+                "Dévise Originale" => $paymentCurrency,
+                "Frais globaux" => $globalfees,
+                "Frais spécifiques" => $specificfees,
+                "Montant net" => $netAmountInUSD,
             ]);
 
             // Stocker le mot de passe en clair temporairement pour l'email
@@ -140,19 +156,20 @@ class RegisterController extends Controller
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'password' => Hash::make($plainPassword),
-                'whatsapp' => $request->get('whatsapp'),
-                'phone' => $validated['phone'],
                 'sexe' => $validated['gender'],
+                'address' => $validated['address'],
+                'phone' => $validated['phone'],
+                'whatsapp' => $validated['whatsapp'] ?? null,
                 'pays' => $validated['country'],
                 'province' => $validated['province'],
                 'ville' => $validated['city'],
-                'address' => $validated['address'],
                 'status' => 'active',
+                'is_admin' => false,
+                'acquisition_source' => $validated['acquisition_source'] ?? null,
                 'pack_de_publication_id' => $pack->id,
             ]);
 
-            $account_id = "00-CPT-".$user->id;
-            $user->account_id = $account_id;
+            $user->account_id = '00-CPT-'.$user->id;
             $user->update();
 
             // Traiter le code de parrainage
@@ -204,6 +221,11 @@ class RegisterController extends Controller
             // Distribuer les commissions
             $this->processCommissions($user_pack, $validated['duration_months']);
             
+            // Mettre à jour le statut de l'invitation si un code d'invitation a été fourni
+            if (!empty($validated['invitation_code'])) {
+                $this->updateInvitationStatus($validated['invitation_code'], $user->id);
+            }
+            
             DB::commit();
 
             // Envoyer l'email de vérification avec les informations supplémentaires
@@ -217,6 +239,7 @@ class RegisterController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Erreur lors de l\'inscription: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'inscription'
@@ -245,35 +268,35 @@ class RegisterController extends Controller
      * @param string $currency Devise d'origine
      * @return float Montant estimé en USD
      */
-    private function estimateUSDAmount($amount, $currency)
-    {
-        // Taux de conversion approximatifs (à mettre à jour régulièrement)
-        $rates = [
-            'EUR' => 1.09,
-            'GBP' => 1.27,
-            'CAD' => 0.73,
-            'AUD' => 0.66,
-            'JPY' => 0.0067,
-            'CHF' => 1.12,
-            'CNY' => 0.14,
-            'INR' => 0.012,
-            'BRL' => 0.19,
-            'ZAR' => 0.054,
-            'NGN' => 0.00065,
-            'GHS' => 0.071,
-            'XOF' => 0.0017,
-            'XAF' => 0.0017,
-            'CDF' => 0.0017,
-        ];
+    // private function estimateUSDAmount($amount, $currency)
+    // {
+    //     // Taux de conversion approximatifs (à mettre à jour régulièrement)
+    //     $rates = [
+    //         'EUR' => 1.09,
+    //         'GBP' => 1.27,
+    //         'CAD' => 0.73,
+    //         'AUD' => 0.66,
+    //         'JPY' => 0.0067,
+    //         'CHF' => 1.12,
+    //         'CNY' => 0.14,
+    //         'INR' => 0.012,
+    //         'BRL' => 0.19,
+    //         'ZAR' => 0.054,
+    //         'NGN' => 0.00065,
+    //         'GHS' => 0.071,
+    //         'XOF' => 0.0017,
+    //         'XAF' => 0.0017,
+    //         'CDF' => 0.0017,
+    //     ];
         
-        if (isset($rates[$currency])) {
-            return $amount * $rates[$currency];
-        }
+    //     if (isset($rates[$currency])) {
+    //         return $amount * $rates[$currency];
+    //     }
         
-        // Si la devise n'est pas dans la liste, utiliser un taux par défaut
-        //\Log::warning("Devise non reconnue pour la conversion: $currency. Utilisation du taux par défaut.");
-        return $amount;
-    }
+    //     // Si la devise n'est pas dans la liste, utiliser un taux par défaut
+    //     //\Log::warning("Devise non reconnue pour la conversion: $currency. Utilisation du taux par défaut.");
+    //     return $amount;
+    // }
     
     /**
      * Convertit un montant d'une devise en USD
@@ -297,8 +320,38 @@ class RegisterController extends Controller
         } catch (\Exception $e) {
             \Log::error('Erreur lors de l\'appel à l\'API de conversion: ' . $e->getMessage());
         }
-        
-        // Si l'API échoue, utiliser l'estimation
-        return $this->estimateUSDAmount($amount, $currency);
+    }
+    
+    /**
+     * Met à jour le statut d'une invitation après l'inscription d'un utilisateur
+     * 
+     * @param string $invitationCode Code de l'invitation
+     * @param int $userId ID de l'utilisateur qui s'est inscrit
+     * @return void
+     */
+    private function updateInvitationStatus($invitationCode, $userId)
+    {
+        try {
+            $invitation = ReferralInvitation::where('invitation_code', $invitationCode)
+                ->whereIn('status', ['pending', 'sent', 'opened'])
+                ->first();
+                
+            if ($invitation) {
+                $invitation->status = 'registered';
+                $invitation->registered_at = Carbon::now();
+                $invitation->save();
+                
+                // Récupérer le propriétaire de l'invitation et l'utilisateur nouvellement inscrit
+                $invitation_owner = $invitation->user;
+                $new_user = User::find($userId);
+                
+                // Envoyer une notification au propriétaire de l'invitation
+                if ($invitation_owner && $new_user) {
+                    $invitation_owner->notify(new ReferralInvitationConverted($invitation, $new_user));
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de la mise à jour du statut de l\'invitation: ' . $e->getMessage());
+        }
     }
 }
