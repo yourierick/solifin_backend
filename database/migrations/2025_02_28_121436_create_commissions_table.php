@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('source_user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('pack_id')->nullable()->constrained('packs')->onDelete('set null');
+            $table->integer('duree');
             $table->decimal('amount', 10, 2);
             $table->integer('level');
             $table->string('status');

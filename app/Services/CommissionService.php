@@ -53,6 +53,7 @@ class CommissionService
                         'user_id' => $currentSponsor->id,
                         'source_user_id' => $currentUser->id,
                         'pack_id' => $purchase->pack_id,
+                        'duree' => $duration_months,
                         'amount' => $amount,
                         'level' => $level,
                         'status' => 'failed',
@@ -87,7 +88,7 @@ class CommissionService
             }
 
             // Mettre à jour le solde du portefeuille
-            $wallet->addFunds($commission->amount, "commission", "completed", [ "source_id"=>$commission->source_user_id, "source"=>$commission->source_user->name, 
+            $wallet->addFunds($commission->amount, "commission de parrainage", "completed", [ "source_id"=>$commission->source_user_id, "source"=>$commission->source_user->name, 
             "pack_name"=>$commission->pack->name, "pack_id"=>$commission->pack->id, "duration"=>$duration_months]); 
 
             // Marquer la commission comme traitée
@@ -110,6 +111,7 @@ class CommissionService
                     "user" => $commission->source_user->name, 
                     "Opération" => "Commission de parrainage",
                     "Montant" => $commission->amount, 
+                    "Durée" => $duration_months
                 ]
             ]);
 

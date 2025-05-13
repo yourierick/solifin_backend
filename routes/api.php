@@ -335,4 +335,25 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::get('/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'index']);
     Route::get('/settings/key/{key}', [\App\Http\Controllers\Admin\SettingsController::class, 'getByKey']);
     Route::put('/settings/key/{key}', [\App\Http\Controllers\Admin\SettingsController::class, 'updateByKey']);
+    
+    // Routes pour la gestion des commissions
+    Route::get('/commissions', [\App\Http\Controllers\Admin\CommissionController::class, 'index']);
+    Route::get('/commissions/statistics', [\App\Http\Controllers\Admin\CommissionController::class, 'statistics']);
+    Route::get('/commissions/packs', [\App\Http\Controllers\Admin\CommissionController::class, 'getPacks']);
+    Route::get('/commissions/common-errors', [\App\Http\Controllers\Admin\CommissionController::class, 'commonErrors']);
+    Route::get('/commissions/{id}', [\App\Http\Controllers\Admin\CommissionController::class, 'show']);
+    Route::post('/commissions/{id}/retry', [\App\Http\Controllers\Admin\CommissionController::class, 'retry']);
+    
+    // Routes pour la gestion des finances
+    Route::get('/finances', [\App\Http\Controllers\Admin\FinanceController::class, 'index']);
+    Route::get('/finances/stats-by-type', [\App\Http\Controllers\Admin\FinanceController::class, 'getStatsByType']);
+    Route::get('/finances/stats-by-period', [\App\Http\Controllers\Admin\FinanceController::class, 'getStatsByPeriod']);
+    Route::get('/finances/transaction-types', [\App\Http\Controllers\Admin\FinanceController::class, 'getTransactionTypes']);
+    Route::get('/finances/system-balance', [\App\Http\Controllers\Admin\FinanceController::class, 'getSystemBalance']);
+    Route::get('/finances/summary', [\App\Http\Controllers\Admin\FinanceController::class, 'getSummary']);
+    
+    // Routes pour la gestion des points bonus
+    Route::get('/finances/bonus-points-history', [\App\Http\Controllers\Admin\FinanceController::class, 'getBonusPointsHistory']);
+    Route::get('/finances/bonus-points-stats', [\App\Http\Controllers\Admin\FinanceController::class, 'getBonusPointsStats']);
+    Route::get('/finances/bonus-points-types', [\App\Http\Controllers\Admin\FinanceController::class, 'getBonusPointsTypes']);
 });

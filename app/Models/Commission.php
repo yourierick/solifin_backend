@@ -10,6 +10,7 @@ class Commission extends Model
         'user_id',
         'source_user_id',
         'pack_id',
+        'duree',
         'amount',
         'level',
         'status',
