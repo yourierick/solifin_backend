@@ -117,6 +117,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // Déconnexion
     Route::middleware('auth:sanctum')->post('/logout', [LoginController::class, 'logout']);
 
+    // Routes pour le profil utilisateur
+    // Route::get('/user', [\App\Http\Controllers\UserController::class, 'show']);
+    // Route::put('/user', [\App\Http\Controllers\UserController::class, 'update']);
+    // Route::post('/user/profile-photo', [\App\Http\Controllers\UserController::class, 'updateProfilePhoto']);
+
     // Routes pour les packs utilisateur
     Route::get('/user/packs', [\App\Http\Controllers\User\PackController::class, 'getUserPacks']);
     Route::post('/packs/{pack}/renew', [\App\Http\Controllers\User\PackController::class, 'renewPack']);
@@ -124,11 +129,25 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/packs/{pack}/referrals', [\App\Http\Controllers\User\PackController::class, 'getPackReferrals']);
     Route::get('/packs/{pack}/detailed-stats', [\App\Http\Controllers\User\PackController::class, 'getDetailedPackStats']);
     Route::post('/packs/purchase_a_new_pack', [\App\Http\Controllers\User\PackController::class, 'purchase_a_new_pack']);
-
+    
     // Routes pour les demandes de retrait
     Route::post('/withdrawal/request/{walletId}', [WithdrawalController::class, 'request']);
     Route::post('/withdrawal/request/{id}/cancel', [WithdrawalController::class, 'cancel']);
     Route::get('/withdrawal/referral-commission', [WithdrawalController::class, 'getReferralCommissionPercentage']);
+
+    // Routes pour les finances de l'utilisateur
+    Route::prefix('user/finances')->group(function () {
+        Route::get('/transactions', [\App\Http\Controllers\User\FinanceController::class, 'getTransactions']);
+        Route::get('/transaction-types', [\App\Http\Controllers\User\FinanceController::class, 'getTransactionTypes']);
+        Route::get('/stats-by-type', [\App\Http\Controllers\User\FinanceController::class, 'getTransactionStatsByType']);
+        Route::get('/wallet-balance', [\App\Http\Controllers\User\FinanceController::class, 'getWalletBalance']);
+        Route::get('/summary', [\App\Http\Controllers\User\FinanceController::class, 'getSummary']);
+        
+        // Routes pour les points bonus
+        Route::get('/bonus-points-history', [\App\Http\Controllers\User\FinanceController::class, 'getBonusPointsHistory']);
+        Route::get('/bonus-points-stats', [\App\Http\Controllers\User\FinanceController::class, 'getBonusPointsStats']);
+        Route::get('/bonus-points-types', [\App\Http\Controllers\User\FinanceController::class, 'getBonusPointsTypes']);
+    });
 
     // Routes pour la gestion des pages et publications et files d'actualités
     Route::get('/my-page', [App\Http\Controllers\PageController::class, 'getMyPage']);
