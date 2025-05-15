@@ -38,6 +38,7 @@ class CommissionService
                         'user_id' => $currentSponsor->id,
                         'source_user_id' => $currentUser->id,
                         'pack_id' => $purchase->pack_id,
+                        'duree' => $duration_months,
                         'amount' => $amount,
                         'level' => $level,
                         'status' => 'pending'

@@ -33,7 +33,6 @@ class TransactionFeeController extends Controller
      */
     public function store(Request $request)
     {
-        \Log::info($request->all());
         $validator = Validator::make($request->all(), [
             'payment_method' => 'required|string|max:255|unique:transaction_fees',
             'payment_type' => 'required|string|max:255',
@@ -43,6 +42,8 @@ class TransactionFeeController extends Controller
             'fee_cap' => 'nullable|numeric|min:0',
             'is_active' => 'boolean'
         ]);
+
+        \Log::info($request->all());
 
         if ($validator->fails()) {
             return response()->json([

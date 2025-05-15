@@ -30,10 +30,6 @@ class RegisterController extends Controller
     public function register(Request $request, $pack_id)
     {
         try {
-            \Log::info($request->all());
-            return response()->json([
-                "succes" => false,
-            ]);
             // Valider les données
             $validated = $request->validate([
                 'name' => 'required|string|max:255',

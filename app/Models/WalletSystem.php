@@ -70,6 +70,6 @@ class WalletSystem extends Model
      */
     public function transactions()
     {
-        return $this->hasMany(WalletSystemsTransaction::class);
+        return $this->hasMany(WalletSystemTransaction::class);
     }
 }

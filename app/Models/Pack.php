@@ -19,7 +19,8 @@ class Pack extends Model
         'status',
         'avantages',
         'duree_publication_en_jour',
-        //'formations',
+        'formations',
+        'abonnement'
     ];
 
     protected $casts = [

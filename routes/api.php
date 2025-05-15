@@ -153,6 +153,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/my-page', [App\Http\Controllers\PageController::class, 'getMyPage']);
     Route::post('/my-page/update-cover-photo', [App\Http\Controllers\PageController::class, 'updateCoverPhoto']);
     Route::get('/feed', [App\Http\Controllers\FeedController::class, 'index']);
+    
     //Route::get('/posts/{id}', [App\Http\Controllers\FeedController::class, 'show']);
     Route::get('/pages/subscribed', [App\Http\Controllers\FeedController::class, 'subscribedPages']);
     Route::get('/pages/recommended', [App\Http\Controllers\FeedController::class, 'recommendedPages']);
@@ -349,6 +350,10 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/settings/countries', [App\Http\Controllers\Admin\CountrySettingsController::class, 'update']);
     Route::put('/settings/countries/{countryCode}/toggle-status', [App\Http\Controllers\Admin\CountrySettingsController::class, 'toggleStatus']);
     Route::post('/settings/countries/toggle-restriction', [App\Http\Controllers\Admin\CountrySettingsController::class, 'toggleGlobalRestriction']);
+    
+    // Routes pour la gestion des taux de change
+    Route::get('/exchange-rates', [App\Http\Controllers\Admin\ExchangeRatesController::class, 'index']);
+    Route::post('/exchange-rates/update', [App\Http\Controllers\Admin\ExchangeRatesController::class, 'update']);
 
     // Routes pour la gestion des paramètres système
     Route::get('/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'index']);

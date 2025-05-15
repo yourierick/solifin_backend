@@ -39,8 +39,8 @@ class PackController extends Controller
 
     public function store(Request $request)
     {
+        \Log::info($request->all());
         try {
-
             $validated = $request->validate([
                 'categorie' => ['required'],
                 'name' => ['required', 'max:255', 'string', Rule::unique('packs')],
@@ -49,15 +49,16 @@ class PackController extends Controller
                 'status' => 'required|boolean',
                 'avantages' => 'required|json',
                 'duree_publication_en_jour' => 'required|numeric|min:1',
-                //'formations' => 'required|file|mimes:zip,rar,7z|max:102400',
+                'formations' => 'nullable|file|mimes:zip,rar,7z|max:102400',
+                'abonnement' => 'required|string|in:mensuel,trimestriel,semestriel,annuel',
             ]);
 
 
-            // Gérer le fichier de formations
-            // if ($request->hasFile('formations')) {
-            //     $formationsPath = $request->file('formations')->store('formations', 'public');
-            //     $validated['formations'] = $formationsPath;
-            // }
+            //Gérer le fichier de formations
+            if ($request->hasFile('formations')) {
+                $formationsPath = $request->file('formations')->store('formations', 'public');
+                $validated['formations'] = $formationsPath;
+            }
 
             // Créer le pack
             $pack = Pack::create([
@@ -68,7 +69,8 @@ class PackController extends Controller
                 'status' => $request->boolean('status'),
                 'avantages' => json_decode($request->avantages, true),
                 'duree_publication_en_jour' => $validated['duree_publication_en_jour'],
-                //'formations' => $validated['formations'] ?? null,
+                'formations' => $validated['formations'] ?? null,
+                'abonnement' => $validated['abonnement'],
             ]);
 
             //Attribuer automatiquement le pack aux administrateurs
@@ -128,49 +130,9 @@ class PackController extends Controller
             }
             
             Log::error('Erreur dans PackController@store: ' . $e->getMessage());
-            Log::error($validated);
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur est survenue lors de la création du pack'
-            ], 500);
-        }
-    }
-
-    
-    public function renew(Request $request, UserPack $userPack)
-    {
-        try {
-            DB::beginTransaction();
-
-            $validated = $request->validate([
-                'duration_months' => 'required|integer|min:1',
-            ]);
-
-            // Si le pack est expiré, on met à jour la date d'expiration à partir de maintenant
-            // Sinon, on ajoute la durée à la date d'expiration existante
-            $newExpiryDate = $userPack->status === 'expired' 
-                ? now()->addMonths($validated['duration_months'])
-                : $userPack->expiry_date->addMonths($validated['duration_months']);
-
-            $userPack->update([
-                'status' => 'active',
-                'expiry_date' => $newExpiryDate,
-            ]);
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Pack renouvelé avec succès',
-                'data' => $userPack
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Erreur dans PackController@renew: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Une erreur est survenue lors du renouvellement du pack'
             ], 500);
         }
     }
@@ -193,7 +155,8 @@ class PackController extends Controller
             'price' => 'required|numeric|min:0',
             'status' => 'required|boolean',
             'avantages' => 'required|json',
-            'formations' => 'nullable|file|mimes:zip,rar,7z|max:10240',
+            'formations' => 'nullable|file|mimes:zip,rar,7z|max:102400',
+            'abonnement' => 'required|string|in:mensuel,trimestriel,semestriel,annuel',
         ]);
 
         if ($validator->fails()) {
@@ -206,17 +169,23 @@ class PackController extends Controller
         try {
             DB::beginTransaction();
 
-            // Gérer le fichier des formations s'il est présent
-            // if ($request->hasFile('formations')) {
-            //     // Supprimer l'ancien fichier s'il existe
-            //     if ($pack->formations && Storage::exists($pack->formations)) {
-            //         Storage::delete($pack->formations);
-            //     }
+            // Gérer le fichier des formations
+            if ($request->hasFile('formations')) {
+                // Supprimer l'ancien fichier s'il existe
+                if ($pack->formations && Storage::disk('public')->exists($pack->formations)) {
+                    Storage::disk('public')->delete($pack->formations);
+                }
 
-            //     $file = $request->file('formations');
-            //     $path = $file->store('formations');
-            //     $pack->formations = $path;
-            // }
+                $file = $request->file('formations');
+                $path = $file->store('formations', 'public');
+                $pack->formations = $path;
+            } elseif ($request->has('delete_formations') && $request->delete_formations) {
+                // Supprimer le fichier existant sans en ajouter un nouveau
+                if ($pack->formations && Storage::disk('public')->exists($pack->formations)) {
+                    Storage::disk('public')->delete($pack->formations);
+                }
+                $pack->formations = null;
+            }
 
             $pack->update([
                 'categorie' => $request->categorie,
@@ -226,6 +195,7 @@ class PackController extends Controller
                 'price' => $request->price,
                 'status' => filter_var($request->status, FILTER_VALIDATE_BOOLEAN),
                 'avantages' => $request->avantages,
+                'abonnement' => $request->abonnement,
             ]);
 
             DB::commit();
@@ -249,10 +219,10 @@ class PackController extends Controller
         try {
             DB::beginTransaction();
 
-            // Supprimer le fichier des formations s'il existe
-            // if ($pack->formations && Storage::exists($pack->formations)) {
-            //     Storage::delete($pack->formations);
-            // }
+            //Supprimer le fichier des formations s'il existe
+            if ($pack->formations && Storage::exists($pack->formations)) {
+                Storage::delete($pack->formations);
+            }
 
             $pack->delete();
 

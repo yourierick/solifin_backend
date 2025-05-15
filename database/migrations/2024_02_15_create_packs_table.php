@@ -13,11 +13,12 @@ return new class extends Migration
             $table->enum('categorie', ['packs à 1 étoile', 'packs à 2 étoiles', 'packs à 3 étoiles/VIP']);
             $table->string('name');
             $table->text('description');
+            $table->enum('abonnement', ['mensuel', 'trimestriel', 'semestriel', 'annuel']);
             $table->decimal('price', 10, 2);
             $table->boolean('status')->default(true);
             $table->json('avantages');
             $table->integer('duree_publication_en_jour');
-            //$table->string('formations')->nullable();
+            $table->string('formations')->nullable();
             $table->timestamps();
         });
 

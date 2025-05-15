@@ -33,9 +33,10 @@ class VerifyEmailWithCredentials extends VerifyEmailFrench implements ShouldQueu
     /**
      * Get the notification's delivery channels.
      *
-     * @return array<int, string>
+     * @param mixed $notifiable
+     * @return array
      */
-    public function via(object $notifiable): array
+    public function via($notifiable)
     {
         return ['mail'];
     }
