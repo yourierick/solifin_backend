@@ -67,6 +67,37 @@ class AdminDashboardController extends Controller
         $newUsers = User::where('is_admin', false)
             ->where('created_at', '>=', $startDate)
             ->count();
+            
+        // Récupérer les inscriptions par jour de la semaine en cours
+        $startOfWeek = now()->startOfWeek(); // Lundi
+        $endOfWeek = now()->endOfWeek();     // Dimanche
+        
+        $usersByDay = User::where('is_admin', false)
+            ->whereBetween('created_at', [$startOfWeek, $endOfWeek])
+            ->select(DB::raw('DAYOFWEEK(created_at) as day_of_week'), DB::raw('count(*) as count'))
+            ->groupBy('day_of_week')
+            ->orderBy('day_of_week')
+            ->get()
+            ->keyBy('day_of_week');
+        
+        // Préparer les données pour chaque jour (1=Dimanche, 2=Lundi, ..., 7=Samedi dans MySQL)
+        $daysOfWeek = [
+            2 => 'Lun',
+            3 => 'Mar',
+            4 => 'Mer',
+            5 => 'Jeu',
+            6 => 'Ven',
+            7 => 'Sam',
+            1 => 'Dim',
+        ];
+        
+        $weeklySignups = [];
+        foreach ($daysOfWeek as $dayNum => $dayName) {
+            $weeklySignups[] = [
+                'name' => $dayName,
+                'value' => $usersByDay->has($dayNum) ? $usersByDay[$dayNum]->count : 0
+            ];
+        }
         
         // Récupérer les sources d'acquisition
         $acquisitionSources = User::where('is_admin', false)
@@ -127,7 +158,9 @@ class AdminDashboardController extends Controller
                 'inactive_users' => $inactiveUsers,
                 'new_users' => $newUsers,
                 'period' => $period,
-                'top_referrers' => $referralStats
+                'top_referrers' => $referralStats,
+                'weekly_signups' => $weeklySignups,
+                'acquisition_sources' => $acquisitionSources
             ]
         ]);
     }
@@ -302,11 +335,11 @@ class AdminDashboardController extends Controller
         foreach ($packs as $pack) {
             // Nombre total d'inscrit par pack pour la période
             $newUsersCount = UserPack::where('pack_id', $pack->id)
-                ->where('created_at', '>=', $startDate)
+                ->where('created_at', '>=', $startDate)->where('is_admin_pack', false)
                 ->count();
             
             // Nombre total d'utilisateur par pack (tous)
-            $totalUsersCount = UserPack::where('pack_id', $pack->id)->count();
+            $totalUsersCount = UserPack::where('pack_id', $pack->id)->where('is_admin_pack', false)->count();
             
             // Points Bonus sur délais attribués par pack
             $bonusPoints = DB::table('user_bonus_points_history')
@@ -470,12 +503,12 @@ class AdminDashboardController extends Controller
         
         foreach ($packs as $pack) {
             // Ventes actuelles
-            $currentSales = UserPack::where('pack_id', $pack->id)
+            $currentSales = UserPack::where('pack_id', $pack->id)->where('is_admin_pack', false)
                 ->where('created_at', '>=', $startDate)
                 ->count();
             
             // Ventes période précédente pour comparaison
-            $previousSales = UserPack::where('pack_id', $pack->id)
+            $previousSales = UserPack::where('pack_id', $pack->id)->where('is_admin_pack', false)
                 ->where('created_at', '>=', $previousStartDate)
                 ->where('created_at', '<', $startDate)
                 ->count();
@@ -483,28 +516,15 @@ class AdminDashboardController extends Controller
             // Calculer le changement en pourcentage
             $salesChange = 0;
             if ($previousSales > 0) {
+                // Calcul normal quand il y a des ventes précédentes
                 $salesChange = round((($currentSales - $previousSales) / $previousSales) * 100);
+            } elseif ($currentSales > 0) {
+                // Si pas de ventes précédentes mais des ventes actuelles, c'est une augmentation de 100%
+                $salesChange = 100;
             }
             
             // Revenus générés par ce pack
             $revenue = $currentSales * $pack->price;
-            
-            // Taux de conversion (nombre d'acheteurs / nombre de visiteurs)
-            $conversionRate = 0;
-            try {
-                if (Schema::hasTable('pack_views')) {
-                    $packViews = DB::table('pack_views')
-                        ->where('pack_id', $pack->id)
-                        ->where('created_at', '>=', $startDate)
-                        ->count();
-                    
-                    if ($packViews > 0) {
-                        $conversionRate = round(($currentSales / $packViews) * 100);
-                    }
-                }
-            } catch (\Exception $e) {
-                \Log::error('Erreur lors de la récupération des vues de pack: ' . $e->getMessage());
-            }
             
             // Déterminer la tendance
             $trend = 'stable';
@@ -514,14 +534,56 @@ class AdminDashboardController extends Controller
                 $trend = 'down';
             }
             
+            // Récupérer le nombre total d'utilisateurs pour ce pack
+            $totalUsersCount = UserPack::where('pack_id', $pack->id)->where('is_admin_pack', false)->count();
+            
+            // Récupérer les données de ventes hebdomadaires pour les 4 dernières semaines
+            $weeklyData = [];
+            
+            // Définir les dates de début des 4 dernières semaines
+            $week4Start = now()->startOfWeek(); // Semaine actuelle
+            $week3Start = now()->startOfWeek()->subWeek(1);
+            $week2Start = now()->startOfWeek()->subWeek(2);
+            $week1Start = now()->startOfWeek()->subWeek(3);
+            $weekEnds = now(); // Date actuelle comme fin
+            
+            // Ventes pour chaque semaine
+            $week1Sales = UserPack::where('pack_id', $pack->id)
+                ->where('is_admin_pack', false)
+                ->whereBetween('created_at', [$week1Start, $week2Start])
+                ->count();
+                
+            $week2Sales = UserPack::where('pack_id', $pack->id)
+                ->where('is_admin_pack', false)
+                ->whereBetween('created_at', [$week2Start, $week3Start])
+                ->count();
+                
+            $week3Sales = UserPack::where('pack_id', $pack->id)
+                ->where('is_admin_pack', false)
+                ->whereBetween('created_at', [$week3Start, $week4Start])
+                ->count();
+                
+            $week4Sales = UserPack::where('pack_id', $pack->id)
+                ->where('is_admin_pack', false)
+                ->whereBetween('created_at', [$week4Start, $weekEnds])
+                ->count();
+            
+            $weeklyData = [
+                'week1' => $week1Sales,
+                'week2' => $week2Sales,
+                'week3' => $week3Sales,
+                'week4' => $week4Sales,
+            ];
+            
             $packStats[] = [
                 'id' => $pack->id,
                 'name' => $pack->name,
                 'sales' => $currentSales,
                 'sales_change' => $salesChange,
                 'revenue' => $revenue,
-                'conversion_rate' => $conversionRate,
-                'trend' => $trend
+                'trend' => $trend,
+                'total_users_count' => $totalUsersCount,
+                'weekly_sales' => $weeklyData
             ];
         }
         
