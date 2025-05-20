@@ -13,9 +13,9 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->text('content');
             $table->integer('rating')->nullable();
-            $table->string('position')->nullable(); // Poste ou rôle de l'utilisateur
-            $table->string('company')->nullable(); // Entreprise de l'utilisateur
-            $table->boolean('status')->default(false); // Pour modération
+            $table->enum('status', ['pending', 'approved', 'rejected'])
+                  ->default('pending'); // Pour modération
+            $table->boolean('featured')->default(false);
             $table->timestamps();
         });
     }

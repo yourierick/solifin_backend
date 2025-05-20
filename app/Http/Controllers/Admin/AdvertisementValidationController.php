@@ -40,6 +40,10 @@ class AdvertisementValidationController extends Controller
                     if ($ad->user && $ad->user->picture) {
                         $ad->user->picture_url = asset('storage/' . $ad->user->picture);
                     }
+
+                    if ($ad->video) {
+                        $ad->video_url = asset('storage/' . $ad->video);
+                    }
                     return $ad;
                 });
             

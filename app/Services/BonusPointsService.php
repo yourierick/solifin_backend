@@ -84,8 +84,8 @@ class BonusPointsService
             
             // Récupérer tous les utilisateurs avec un pack actif
             $users = User::whereHas('packs', function($query) {
-                $query->where('status', 'active')
-                      ->where('payment_status', 'completed');
+                $query->where('user_packs.status', 'active')
+                      ->where('user_packs.payment_status', 'completed');
             })->get();
             
             foreach ($users as $user) {
@@ -159,6 +159,7 @@ class BonusPointsService
             return $stats;
         } catch (\Exception $e) {
             Log::error("Erreur lors du traitement des points bonus pour la fréquence $frequency: " . $e->getMessage());
+            Log::error($e->getTraceAsString());
             return [
                 'users_processed' => 0,
                 'points_attributed' => 0,

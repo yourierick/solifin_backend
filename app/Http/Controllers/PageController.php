@@ -113,13 +113,13 @@ class PageController extends Controller
         
         $page = Page::with([
             'publicites' => function($query) {
-                $query->where('statut', 'approuvé');
+                $query->where('statut', '!=', 'rejeté')->where('statut', '!=', 'en_attente');
             }, 
             'offresEmploi' => function($query) {
-                $query->where('statut', 'approuvé');
+                $query->where('statut', '!=', 'rejeté')->where('statut', '!=', 'en_attente');
             }, 
             'opportunitesAffaires' => function($query) {
-                $query->where('statut', 'approuvé');
+                $query->where('statut', '!=', 'rejeté')->where('statut', '!=', 'en_attente');
             },
             'user'
         ])->findOrFail($id);
@@ -165,6 +165,26 @@ class PageController extends Controller
                     $publicite->image = asset('storage/' . $publicite->image);
                     $publicite->image_url = $publicite->image;
                     $publicite->images = [$publicite->image];
+                }
+            }
+
+            // Ajouter les URLs des videos
+            if ($publicite->video) {
+                $baseUrl = url('/');
+                
+                // Vérifier si l'image est un JSON (tableau d'images) ou une chaîne simple
+                if (is_string($publicite->video) && json_decode($publicite->video) !== null) {
+                    $videoArray = json_decode($publicite->video, true);
+                    $publicite->videos = [];
+                    foreach ($videoArray as $vid) {
+                        $publicite->videos[] = asset('storage/' . $vid);
+                    }
+                    $publicite->video = $publicite->videos[0] ?? null;
+                    $publicite->video_url = $publicite->videos[0] ?? null;
+                } else {
+                    $publicite->video = asset('storage/' . $publicite->video);
+                    $publicite->video_url = $publicite->video;
+                    $publicite->videos = [$publicite->video];
                 }
             }
             

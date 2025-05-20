@@ -51,3 +51,16 @@ Schedule::command('solifin:process-bonus-points yearly')
     ->yearlyOn(1, 1, '01:00') // 1er janvier
     ->appendOutputTo(storage_path('logs/bonus-points-yearly.log'))
     ->description('Attribue les points bonus annuels aux utilisateurs');
+
+// Planification du traitement des invitations à témoigner
+// Vérification quotidienne des utilisateurs éligibles (tous les jours à 02:00)
+Schedule::command('testimonials:process-prompts --expire')
+    ->everyMinute()
+    ->appendOutputTo(storage_path('logs/testimonial-prompts.log'))
+    ->description('Vérifie les utilisateurs éligibles et crée des invitations à témoigner');
+
+// Vérification hebdomadaire plus approfondie (chaque dimanche à 03:00)
+Schedule::command('testimonials:process-prompts --batch=500 --expire')
+    ->weeklyOn(0, '03:00') // 0 = Dimanche
+    ->appendOutputTo(storage_path('logs/testimonial-prompts-weekly.log'))
+    ->description('Vérification hebdomadaire approfondie des invitations à témoigner');

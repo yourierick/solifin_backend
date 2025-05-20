@@ -47,21 +47,18 @@ class FeedController extends Controller
             case 'offres-emploi':
                 $query = OffreEmploi::with(['page', 'page.user'])
                     ->where('statut', 'approuvé')
-                    ->where('etat', 'disponible')
                     ->latest();
                 break;
                 
             case 'opportunites-affaires':
                 $query = OpportuniteAffaire::with(['page', 'page.user'])
                     ->where('statut', 'approuvé')
-                    ->where('etat', 'disponible')
                     ->latest();
                 break;
                 
             default: // 'publicites'
                 $query = Publicite::with(['page', 'page.user'])
                     ->where('statut', 'approuvé')
-                    ->where('etat', 'disponible')
                     ->latest();
                 break;
         }
@@ -137,6 +134,34 @@ class FeedController extends Controller
                     $post->images[] = [
                         'url' => $imageUrl,
                         'path' => $publication->image
+                    ];
+                }
+            }
+
+            // Images
+            $post->videos = [];
+            if (!empty($publication->video)) {
+                // Obtenir l'URL de base du serveur
+                $baseUrl = url('/');
+                
+                // Vérifier si l'image est un JSON (tableau d'images) ou une chaîne simple
+                if (is_string($publication->video) && json_decode($publication->video) !== null) {
+                    $videoArray = json_decode($publication->video, true);
+                    foreach ($videoArray as $vid) {
+                        // Construire l'URL complète avec le domaine du serveur
+                        $videoUrl = $baseUrl . Storage::url($vid);
+                        $post->videos[] = [
+                            'url' => $videoUrl,
+                            'path' => $vid
+                        ];
+                    }
+                } else {
+                    // Si c'est une seule image (chaîne)
+                    // Construire l'URL complète avec le domaine du serveur
+                    $videoUrl = $baseUrl . Storage::url($publication->video);
+                    $post->videos[] = [
+                        'url' => $videoUrl,
+                        'path' => $publication->video
                     ];
                 }
             }

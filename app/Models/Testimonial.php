@@ -14,14 +14,13 @@ class Testimonial extends Model
         'user_id',
         'content',
         'rating',
-        'position',
-        'company',
         'status',
+        'featured', //Pour mettre en avant un témoignage
     ];
 
     protected $casts = [
-        'status' => 'boolean',
         'rating' => 'integer',
+        'featured' => 'boolean',
     ];
 
     // Relation avec l'utilisateur
@@ -33,13 +32,13 @@ class Testimonial extends Model
     // Scope pour les témoignages actifs/approuvés
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('status', true);
+        return $query->where('status', 'approved');
     }
 
     // Scope pour les témoignages en attente de modération
     public function scopePending(Builder $query): Builder
     {
-        return $query->where('status', false);
+        return $query->where('status', 'pending');
     }
 
     // Scope pour filtrer par note minimale
@@ -81,23 +80,5 @@ class Testimonial extends Model
         $emptyStars = str_repeat('☆', 5 - $this->rating);
         
         return $stars . $emptyStars;
-    }
-
-    // Obtenir le titre complet (position @ entreprise)
-    public function getTitleAttribute(): string
-    {
-        if (!$this->position && !$this->company) {
-            return '';
-        }
-
-        if (!$this->company) {
-            return $this->position;
-        }
-
-        if (!$this->position) {
-            return $this->company;
-        }
-
-        return $this->position . ' @ ' . $this->company;
     }
 } 

@@ -354,4 +354,66 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         $this->notify(new VerifyEmailFrench);
     }
+    
+    /**
+     * Relation avec les témoignages soumis par l'utilisateur.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function testimonials()
+    {
+        return $this->hasMany(Testimonial::class);
+    }
+    
+    /**
+     * Relation avec les invitations à témoigner reçues par l'utilisateur.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function testimonialPrompts()
+    {
+        return $this->hasMany(TestimonialPrompt::class);
+    }
+    
+    /**
+     * Vérifie si l'utilisateur a reçu une invitation à témoigner récemment.
+     *
+     * @param int $days Nombre de jours à considérer
+     * @return bool
+     */
+    public function hasRecentTestimonialPrompt(int $days = 30): bool
+    {
+        return $this->testimonialPrompts()
+                    ->where('created_at', '>', now()->subDays($days))
+                    ->exists();
+    }
+    
+    /**
+     * Vérifie si l'utilisateur est éligible pour recevoir une invitation à témoigner.
+     *
+     * @return bool
+     */
+    public function isEligibleForTestimonialPrompt(): bool
+    {
+        // Ne pas inviter si l'utilisateur a déjà reçu une invitation récemment
+        if ($this->hasRecentTestimonialPrompt()) {
+            return false;
+        }
+        
+        // Vérifier si l'utilisateur est inscrit depuis au moins 30 jours
+        if ($this->created_at->diffInDays(now()) < 30) {
+            return false;
+        }
+        
+        // Vérifier si l'utilisateur a déjà soumis un témoignage récemment
+        $hasRecentTestimonial = $this->testimonials()
+            ->where('created_at', '>', now()->subDays(90))
+            ->exists();
+            
+        if ($hasRecentTestimonial) {
+            return false;
+        }
+        
+        return true;
+    }
 }

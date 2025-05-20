@@ -34,6 +34,19 @@ use App\Http\Controllers\Api\CurrencyController;
 
 // Routes publiques (chargement des packs dans la page d'accueil)
 Route::get('/packs', [App\Http\Controllers\HomeController::class, 'index']);
+// Route publique pour les publicités approuvées (carrousel)
+Route::get('/ads/approved', [App\Http\Controllers\HomeController::class, 'approvedAds']);
+// Routes publiques pour les témoignages
+Route::get('/testimonials/featured', [App\Http\Controllers\TestimonialController::class, 'getFeatured']);
+Route::get('/testimonials/approved', [App\Http\Controllers\TestimonialController::class, 'getApproved']);
+// Route pour les statistiques publiques
+Route::get('/stats/home', [App\Http\Controllers\StatsController::class, 'getHomeStats']);
+
+// Routes pour le système de FAQ
+Route::get('/faqs', [App\Http\Controllers\FaqController::class, 'index']);
+Route::get('/faq/categories', [App\Http\Controllers\FaqController::class, 'getCategories']);
+Route::post('/faqs/{id}/vote', [App\Http\Controllers\FaqController::class, 'vote']);
+Route::get('/faqs/search', [App\Http\Controllers\FaqController::class, 'search']);
 // Routes d'achat de pack (achat d'un pack lors de l'enregistrement)
 Route::get('/purchases/{sponsor_code}', [PackPurchaseController::class, 'show']);
 // Route::post('/purchases/initiate', [PackPurchaseController::class, 'initiate']);
@@ -247,10 +260,55 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/invitations/statistics', [\App\Http\Controllers\ReferralInvitationController::class, 'statistics']);
     Route::apiResource('/referral-invitations', \App\Http\Controllers\ReferralInvitationController::class);
     Route::post('/referral-invitations/{id}/resend', [\App\Http\Controllers\ReferralInvitationController::class, 'resend']);
+    
+    // Routes pour les invitations à témoigner
+    Route::prefix('testimonials')->group(function () {
+        // Récupérer les invitations actives pour l'utilisateur connecté
+        Route::get('/prompts/active', [\App\Http\Controllers\TestimonialPromptController::class, 'getActivePrompts']);
+        
+        // Marquer une invitation comme affichée
+        Route::post('/prompts/{id}/display', [\App\Http\Controllers\TestimonialPromptController::class, 'markAsDisplayed']);
+        
+        // Marquer une invitation comme cliquée
+        Route::post('/prompts/{id}/click', [\App\Http\Controllers\TestimonialPromptController::class, 'markAsClicked']);
+        
+        // Soumettre un témoignage en réponse à une invitation
+        Route::post('/prompts/{id}/submit', [\App\Http\Controllers\TestimonialPromptController::class, 'submitTestimonial']);
+        
+        // Décliner une invitation
+        Route::post('/prompts/{id}/decline', [\App\Http\Controllers\TestimonialPromptController::class, 'declinePrompt']);
+    });
 });
 
 // Routes admin
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+    // Routes pour la modération des témoignages
+    Route::prefix('testimonials')->group(function () {
+        // Récupérer tous les témoignages avec pagination et filtres
+        Route::get('/', [\App\Http\Controllers\Admin\TestimonialController::class, 'index']);
+        
+        // Compter les témoignages en attente
+        Route::get('/count-pending', [\App\Http\Controllers\Admin\TestimonialController::class, 'countPending']);
+        
+        // Récupérer un témoignage spécifique
+        Route::get('/{id}', [\App\Http\Controllers\Admin\TestimonialController::class, 'show']);
+        
+        // Approuver un témoignage
+        Route::post('/{id}/approve', [\App\Http\Controllers\Admin\TestimonialController::class, 'approve']);
+        
+        // Rejeter un témoignage
+        Route::post('/{id}/reject', [\App\Http\Controllers\Admin\TestimonialController::class, 'reject']);
+        
+        // Mettre en avant un témoignage
+        Route::post('/{id}/feature', [\App\Http\Controllers\Admin\TestimonialController::class, 'feature']);
+        
+        // Retirer la mise en avant d'un témoignage
+        Route::post('/{id}/unfeature', [\App\Http\Controllers\Admin\TestimonialController::class, 'unfeature']);
+        
+        // Supprimer un témoignage
+        Route::delete('/{id}', [\App\Http\Controllers\Admin\TestimonialController::class, 'destroy']);
+    });
+    
     // Routes pour la gestion des frais de transaction
     Route::get('/transaction-fees', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'index']);
     Route::post('/transaction-fees', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'store']);
@@ -261,11 +319,11 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/transaction-fees/update-from-api', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'updateFromApi']);
     
     // Gestion des publications
-    Route::get('/posts', [App\Http\Controllers\AdminPostController::class, 'index']);
-    Route::get('/posts/{id}', [App\Http\Controllers\AdminPostController::class, 'show']);
-    Route::post('/posts/{id}/approve', [App\Http\Controllers\AdminPostController::class, 'approve']);
-    Route::post('/posts/{id}/reject', [App\Http\Controllers\AdminPostController::class, 'reject']);
-    Route::delete('/posts/{id}', [App\Http\Controllers\AdminPostController::class, 'destroy']);
+    // Route::get('/posts', [App\Http\Controllers\AdminPostController::class, 'index']);
+    // Route::get('/posts/{id}', [App\Http\Controllers\AdminPostController::class, 'show']);
+    // Route::post('/posts/{id}/approve', [App\Http\Controllers\AdminPostController::class, 'approve']);
+    // Route::post('/posts/{id}/reject', [App\Http\Controllers\AdminPostController::class, 'reject']);
+    // Route::delete('/posts/{id}', [App\Http\Controllers\AdminPostController::class, 'destroy']);
     
     // Gestion des packs
     Route::apiResource('packs', \App\Http\Controllers\Admin\PackController::class);
@@ -380,4 +438,20 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::get('/finances/bonus-points-history', [\App\Http\Controllers\Admin\FinanceController::class, 'getBonusPointsHistory']);
     Route::get('/finances/bonus-points-stats', [\App\Http\Controllers\Admin\FinanceController::class, 'getBonusPointsStats']);
     Route::get('/finances/bonus-points-types', [\App\Http\Controllers\Admin\FinanceController::class, 'getBonusPointsTypes']);
+    
+    // Routes pour la gestion administrative des FAQ
+    Route::get('/faqs', [\App\Http\Controllers\FaqController::class, 'index']);
+    Route::post('/faqs', [\App\Http\Controllers\FaqController::class, 'store']);
+    Route::get('/faqs/stats/views', [\App\Http\Controllers\FaqController::class, 'getViewStats']);
+    Route::put('/faqs/{id}/order', [\App\Http\Controllers\FaqController::class, 'updateOrder']);
+    Route::get('/faqs/{id}/related', [\App\Http\Controllers\FaqController::class, 'getRelatedFaqs']);
+    Route::post('/faqs/{id}/related', [\App\Http\Controllers\FaqController::class, 'addRelatedFaq']);
+    Route::delete('/faqs/{id}/related/{relatedId}', [\App\Http\Controllers\FaqController::class, 'removeRelatedFaq']);
+    Route::put('/faqs/{id}', [\App\Http\Controllers\FaqController::class, 'update']);
+    Route::delete('/faqs/{id}', [\App\Http\Controllers\FaqController::class, 'destroy']);
+    
+    // Routes pour la gestion des catégories de FAQ
+    Route::post('/faq/categories', [\App\Http\Controllers\FaqController::class, 'storeCategory']);
+    Route::put('/faq/categories/{id}', [\App\Http\Controllers\FaqController::class, 'updateCategory']);
+    Route::delete('/faq/categories/{id}', [\App\Http\Controllers\FaqController::class, 'destroyCategory']);
 });

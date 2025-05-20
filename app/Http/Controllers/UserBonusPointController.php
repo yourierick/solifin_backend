@@ -8,6 +8,7 @@ use App\Models\UserBonusPointHistory;
 use App\Models\BonusRates;
 use App\Services\BonusPointsService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Contrôleur pour gérer les points bonus des utilisateurs
@@ -121,32 +122,47 @@ class UserBonusPointController extends Controller
      */
     public function convertPoints(Request $request)
     {
-        $request->validate([
-            'points' => 'required|integer|min:1',
-            'pack_id' => 'required|exists:packs,id'
-        ]);
-        
-        $user = Auth::user();
-        
-        // Utiliser le service pour convertir les points
-        $result = $this->bonusPointsService->convertPointsToWallet(
-            $user->id, 
-            $request->pack_id, 
-            $request->points
-        );
-        
-        if ($result['success']) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Conversion réussie! ' . $request->points . ' points ont été convertis en ' . $result['amount'] . ' $',
-                'amount' => $result['amount'],
-                'remaining_points' => $result['remaining_points']
+        try {
+            $request->validate([
+                'points' => 'required|integer|min:1',
+                'pack_id' => 'required|exists:packs,id'
             ]);
-        } else {
+            
+            DB::beginTransaction();
+
+            $user = Auth::user();
+            
+            // Utiliser le service pour convertir les points
+            $result = $this->bonusPointsService->convertPointsToWallet(
+                $user->id, 
+                $request->pack_id, 
+                $request->points
+            );
+
+            
+            if ($result['success']) {
+                DB::commit();
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Conversion réussie! ' . $request->points . ' points ont été convertis en ' . $result['amount'] . ' $',
+                    'amount' => $result['amount'],
+                    'remaining_points' => $result['remaining_points']
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => $result['message']
+                ], 400);
+            }
+        }
+        catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Erreur lors de l\'inscription: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
             return response()->json([
                 'success' => false,
-                'message' => $result['message']
-            ], 400);
+                'message' => 'Erreur lors de l\'inscription'
+            ], 500);
         }
     }
 }

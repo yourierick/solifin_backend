@@ -79,30 +79,30 @@ class WalletController extends Controller
         }
     }
 
-    public function withdraw(Request $request)
-    {
-        try {
-            $request->validate([
-                'wallet_id' => 'required',
-                'wallet_type' => 'required|in:admin,system',
-                'payment_method' => 'required',
-                'amount' => 'required|numeric|min:0',
-            ]);
+    // public function withdraw(Request $request)
+    // {
+    //     try {
+    //         $request->validate([
+    //             'wallet_id' => 'required',
+    //             'wallet_type' => 'required|in:admin,system',
+    //             'payment_method' => 'required',
+    //             'amount' => 'required|numeric|min:0',
+    //         ]);
 
-            // Logique de retrait à implémenter selon vos besoins
+    //         // Logique de retrait à implémenter selon vos besoins
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Demande de retrait enregistrée avec succès'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la demande de retrait',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => 'Demande de retrait enregistrée avec succès'
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Erreur lors de la demande de retrait',
+    //             'error' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
 
     /**
      * Transfert de fonds entre wallets

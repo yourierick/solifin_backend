@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Wallet;
 use App\Models\UserBonusPointHistory;
+use App\Models\WalletSystem;
 use App\Models\Pack;
 use App\Models\User;
 use App\Models\BonusRates;
@@ -118,7 +119,7 @@ class UserBonusPoint extends Model
                 'pack_id' => $this->pack_id,
                 'points' => -$points, // Négatif car c'est une utilisation
                 'type' => 'conversion',
-                'description' => "Conversion de $points points en $amount devise (Pack: {$this->pack->name})",
+                'description' => "Conversion de $points points en $amount $ (Pack: {$this->pack->name})",
                 'metadata' => json_encode([
                     'value_per_point' => $valuePerPoint,
                     'amount' => $amount,
@@ -130,11 +131,31 @@ class UserBonusPoint extends Model
             $wallet = Wallet::where('user_id', $this->user_id)->first();
             if ($wallet) {
                 // Utiliser la méthode addFunds du modèle Wallet
-                $wallet->addFunds($amount, 'bonus_points', 'approved', [
-                    'points_converted' => $points,
-                    'value_per_point' => $valuePerPoint,
-                    'pack_id' => $this->pack_id,
-                    'pack_name' => $this->pack->name
+                $wallet->addFunds($amount, 'bonus', 'completed', [
+                    'Points convertis' => $points,
+                    'Valeur par point' => $valuePerPoint,
+                    'Pack Id' => $this->pack_id,
+                    'Nom du pack' => $this->pack->name
+                ]);
+
+                $walletsystem = WalletSystem::first();
+                if (!$walletsystem) {
+                    $walletsystem = WalletSystem::create(['balance' => 0]);
+                }
+
+                $walletsystem->transactions()->create([
+                    'wallet_system_id' => $walletsystem->id,
+                    'amount' => $amount,
+                    'type' => 'bonus',
+                    'status' => 'completed',
+                    'metadata' => [
+                        "user" => $this->user->name . '/ID: ' . $this->user->account_id, 
+                        "Opération" => "Conversion des points",
+                        "Points convertis" => $points,
+                        'Valeur par point' => $valuePerPoint,
+                        "Pack concerné" => $this->pack->name,
+                        "Montant" => $amount,
+                    ]
                 ]);
                 
                 return $amount;
