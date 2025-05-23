@@ -104,7 +104,12 @@ class PubliciteController extends Controller
             }
             
             $validator = Validator::make($data, [
+                'pays' => 'required|string|max:255',
+                'ville' => 'required|string|max:255',
+                'type' => 'required|in:publicité,annonce',
                 'categorie' => 'required|in:produit,service',
+                'sous_categorie' => 'required|in:location de véhicule,location de maison,réservation,livraison,vente,sous-traitance,autre à préciser',
+                'autre_sous_categorie' => 'nullable|string|required_if:sous_categorie,autre à préciser',
                 'titre' => 'required|string|max:255',
                 'description' => 'required|string',
                 'image' => 'nullable|image|max:2048', // 2MB max, optionnel
@@ -178,7 +183,7 @@ class PubliciteController extends Controller
                 $data['duree_affichage'] = $user->pack_de_publication->duree_publication_en_jour;
             } else {
                 // Valeur par défaut si le pack n'est pas disponible
-                $data['duree_affichage'] = 30; // 30 jours par défaut
+                $data['duree_affichage'] = 1; // 1 jour par défaut
             }
             
             // Traitement des fichiers
@@ -198,7 +203,7 @@ class PubliciteController extends Controller
             $admins = \App\Models\User::where('is_admin', true)->get();
             foreach ($admins as $admin) {
                 $admin->notify(new \App\Notifications\PublicationSubmitted([
-                    'type' => 'publicite',
+                    'type' => $publicite->type === "publicité" ? "Publicité" : "Annonce",
                     'id' => $publicite->id,
                     'titre' => "Publicité, titre: " . $publicite->titre,
                     'message' => 'est en attente d\'approbation.',
@@ -239,6 +244,8 @@ class PubliciteController extends Controller
         if ($publicite->video) {
             $publicite->video_url = asset('storage/' . $publicite->video);
         } 
+
+        $publicite->post_type = $publicite->type;
         
         return response()->json([
             'success' => true,
@@ -306,7 +313,12 @@ class PubliciteController extends Controller
             // }
 
             $validator = Validator::make($request->all(), [
+                'pays' => 'nullable|string|max:255',
+                'ville' => 'nullable|string|max:255',
+                'type' => 'nullable|in:publicité,annonce',
                 'categorie' => 'nullable|in:produit,service',
+                'sous_categorie' => 'nullable|in:location de véhicule,location de maison,réservation,livraison,vente,sous-traitance,autre à préciser',
+                'autre_sous_categorie' => 'nullable|string|required_if:sous_categorie,autre à préciser',
                 'titre' => 'nullable|string|max:255',
                 'description' => 'nullable|string',
                 'image' => 'nullable|image|max:5120',
@@ -748,6 +760,7 @@ class PubliciteController extends Controller
         $post->likes_count = PubliciteLike::where('publicite_id', $post->id)->count();
 
         // Type de publication
+        $post->post_type = $post->type;
         $post->type = "publicites";
 
                     

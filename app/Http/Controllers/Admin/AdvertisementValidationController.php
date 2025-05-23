@@ -74,7 +74,7 @@ class AdvertisementValidationController extends Controller
         
         // Notifier l'utilisateur que sa publication a été approuvée
         $publicite->user->notify(new PublicationStatusChanged([
-            'type' => 'publicites',
+            'type' => $publicite->type === "publicité" ? "Publicité" : "Annonce",
             'id' => $publicite->id,
             'titre' => $publicite->titre,
             'statut' => 'approuvé',
@@ -115,7 +115,7 @@ class AdvertisementValidationController extends Controller
         // Notifier l'utilisateur que sa publication a été rejetée
         $user = User::find($publicite->user->id);
         $user->notify(new PublicationStatusChanged([
-            'type' => 'publicites',
+            'type' => $publicite->type === "publicité" ? "Publicité" : "Annonce",
             'id' => $publicite->id,
             'titre' => $publicite->titre,
             'statut' => 'rejete',
@@ -156,7 +156,7 @@ class AdvertisementValidationController extends Controller
         // Notifier l'utilisateur que le statut de sa publication a été modifié
         $user = User::find($publicite->user->id);
         $user->notify(new PublicationStatusChanged([
-            'type' => 'publicites',
+            'type' => $publicite->type === "publicité" ? "Publicité" : "Annonce",
             'id' => $publicite->id,
             'titre' => $publicite->titre,
             'statut' => $request->statut,

@@ -78,12 +78,16 @@ class FeedController extends Controller
         $posts = $publications->map(function ($publication) use ($userId, $type) {
             $post = new \stdClass();
             $post->id = $publication->id;
+            $post->post_type = $publication->type;
             $post->type = $type;
             $post->title = $publication->titre;
             $post->content = $publication->description ?? '';
             $post->external_link = $publication->lien ?? null;
             $post->statut = $publication->statut;
             $post->etat = $publication->etat;
+            $post->pays = $publication->pays;
+            $post->ville = $publication->ville;
+            $post->whatsapp = $publication->contacts;
             $post->created_at = $publication->created_at;
             $post->created_at_formatted = $publication->created_at->diffForHumans();
             
@@ -101,13 +105,18 @@ class FeedController extends Controller
             // Informations spécifiques selon le type
             if ($type === 'offres-emploi') {
                 $post->company_name = $publication->entreprise;
-                $post->location = $publication->lieu;
-                $post->salary_range = $publication->salaire . ' ' . $publication->devise;
                 $post->sector = $publication->secteur ?? '';
                 $post->reference = $publication->reference;
+                $post->date_limite = $publication->date_limite;
             } elseif ($type === 'opportunites-affaires') {
-                $post->investment_amount = $publication->investissement_requis . ' ' . $publication->devise;
                 $post->sector = $publication->secteur;
+                $post->company_name = $publication->entreprise;
+                $post->date_limite = $publication->date_limite;
+                $post->reference = $publication->reference;
+            } elseif ($type === 'publicites') {
+                $post->categorie = $publication->categorie;
+                $post->sous_categorie = $publication->sous_categorie;
+                $post->autre_sous_categorie = $publication->autre_sous_categorie;
             }
             
             // Images
@@ -218,6 +227,8 @@ class FeedController extends Controller
                     $post->is_liked = OpportuniteAffaireLike::where('opportunite_affaire_id', $publication->id)
                         ->where('user_id', $userId)
                         ->exists();
+
+                    $post->opportunity_file_url = $publication->opportunity_file ? asset('storage/' . $publication->opportunity_file) : null;
                     
                     // Compter les commentaires pour cette opportunité d'affaire
                     $post->comments_count = OpportuniteAffaireComment::where('opportunite_affaire_id', $publication->id)->count();
@@ -375,6 +386,7 @@ class FeedController extends Controller
         // Transformer la publication pour avoir un format uniforme
         $post = new \stdClass();
         $post->id = $publication->id;
+        $post->post_type = $publication->type;
         $post->type = $type;
         $post->title = $publication->titre;
         $post->content = $publication->description ?? '';

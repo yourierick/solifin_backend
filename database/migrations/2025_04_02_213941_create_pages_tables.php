@@ -36,7 +36,12 @@ return new class extends Migration
         Schema::create('publicites', function (Blueprint $table) {
             $table->id();
             $table->foreignId('page_id')->constrained()->onDelete('cascade');
+            $table->string('pays');
+            $table->string('ville');
+            $table->enum('type', ['publicité', 'annonce']);
             $table->enum('categorie', ['produit', 'service']);
+            $table->enum('sous_categorie', ['location de véhicule', 'location de maison', 'réservation', 'livraison', 'vente', 'sous-traitance', 'autre à préciser']);
+            $table->string('autre_sous_categorie')->nullable();
             $table->string('titre');
             $table->text('description');
             $table->string('image')->nullable();
@@ -49,14 +54,14 @@ return new class extends Migration
             $table->string('point_vente')->nullable();
             $table->integer('quantite_disponible')->nullable();
             $table->decimal('prix_unitaire_vente', 15, 2);
-            $table->string('devise', 5)->default('XOF');
+            $table->string('devise', 5)->default('FC');
             $table->enum('commission_livraison', ['OUI', 'NON'])->default('NON');
             $table->decimal('prix_unitaire_livraison', 15, 2)->nullable();
             $table->string('lien')->nullable();
             $table->enum('statut', ['en_attente', 'approuvé', 'rejeté', 'expiré'])->default('en_attente');
             $table->string('raison_rejet')->nullable();
             $table->enum('etat', ['disponible', 'terminé'])->default('disponible');
-            $table->integer('duree_affichage')->nullable()->comment('Durée en jours'); 
+            $table->integer('duree_affichage')->comment('Durée en jours'); 
             $table->timestamps();
         });
 
@@ -64,26 +69,24 @@ return new class extends Migration
         Schema::create('offres_emploi', function (Blueprint $table) {
             $table->id();
             $table->foreignId('page_id')->constrained()->onDelete('cascade');
-            $table->string('reference')->nullable();
-            $table->string('titre');
+            $table->enum('type', ['offre_emploi', 'appel_manifestation_intéret']);
+            $table->string('pays');
+            $table->string('ville');
+            $table->string('secteur');
             $table->string('entreprise');
-            $table->string('lieu');
-            $table->string('type_contrat');
+            $table->string('titre');
+            $table->string('reference');
             $table->text('description');
-            $table->text('competences_requises');
-            $table->string('experience_requise');
-            $table->string('niveau_etudes')->nullable();
-            $table->string('salaire')->nullable();
-            $table->string('devise', 5)->nullable()->default('FC');
-            $table->text('avantages')->nullable();
-            $table->date('date_limite')->nullable();
+            $table->string('type_contrat');
+            $table->date('date_limite');
             $table->string('email_contact');
-            $table->string('contacts')->nullable();
-            $table->string('offer_file')->nullable();
+            $table->string('contacts');
+            $table->string('offer_file');
             $table->string('lien')->nullable();
             $table->enum('statut', ['en_attente', 'approuvé', 'rejeté', 'expiré'])->default('en_attente');
             $table->string('raison_rejet')->nullable();
             $table->enum('etat', ['disponible', 'terminé'])->default('disponible');
+            $table->integer('duree_affichage')->comment('Durée en jours'); 
             $table->timestamps();
         });
 
@@ -91,24 +94,36 @@ return new class extends Migration
         Schema::create('opportunites_affaires', function (Blueprint $table) {
             $table->id();
             $table->foreignId('page_id')->constrained()->onDelete('cascade');
-            $table->string('titre');
+            $table->enum('type', ['partenariat', 'appel_projet', 'opportunité']);
+            $table->string('pays');
+            $table->string('ville');
             $table->string('secteur');
+            $table->string('entreprise');
+            $table->string('titre');
+            $table->string('reference');
             $table->text('description');
-            $table->text('benefices_attendus');
-            $table->decimal('investissement_requis', 15, 2)->nullable();
-            $table->string('devise', 5)->nullable()->default('XOF');
-            $table->string('duree_retour_investissement')->nullable();
-            $table->string('image')->nullable();
-            $table->string('localisation')->nullable();
             $table->string('contacts');
-            $table->string('email')->nullable();
-            $table->string('opportunity_file')->nullable();
+            $table->string('email');
+            $table->string('opportunity_file');
             $table->string('lien')->nullable();
-            $table->text('conditions_participation')->nullable();
-            $table->date('date_limite')->nullable();
+            $table->date('date_limite');
             $table->enum('statut', ['en_attente', 'approuvé', 'rejeté', 'expiré'])->default('en_attente');
             $table->string('raison_rejet')->nullable();
             $table->enum('etat', ['disponible', 'terminé'])->default('disponible');
+            $table->integer('duree_affichage')->comment('Durée en jours'); 
+            $table->timestamps();
+        });
+
+        Schema::create('social_events', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('page_id')->constrained()->onDelete('cascade');
+            $table->string('image')->nullable();
+            $table->string('video')->nullable();
+            $table->string('description', 1000)->nullable();
+            $table->enum('statut', ['en_attente', 'approuvé', 'rejeté', 'expiré'])->default('en_attente');
+            $table->string('raison_rejet')->nullable();
+            $table->enum('etat', ['disponible', 'terminé'])->default('disponible');
+            $table->integer('duree_affichage')->comment('Durée en jours'); 
             $table->timestamps();
         });
     }
@@ -120,6 +135,7 @@ return new class extends Migration
      */
     public function down()
     {
+        Schema::dropIfExists('social_events');
         Schema::dropIfExists('opportunites_affaires');
         Schema::dropIfExists('offres_emploi');
         Schema::dropIfExists('publicites');

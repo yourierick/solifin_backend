@@ -39,19 +39,38 @@ class AdminSeeder extends Seeder
             'total_withdrawn' => 0,
         ]);
 
+        // Récupérer l'URL du frontend depuis le fichier .env
+        $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+        
         // Attribuer tous les packs à l'administrateur
         Pack::chunk(100, function ($packs) use ($admin) {
             foreach ($packs as $pack) {
+                $referralLetter = substr($pack->name, 0, 1);
+                $referralNumber = str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                $referralCode = 'SPR' . $referralLetter . $referralNumber;
+
+                // Vérifier que le code est unique
+                while (UserPack::where('referral_code', $referralCode)->exists()) {
+                    $referralNumber = str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+                    $referralCode = 'SPR' . $referralLetter . $referralNumber;
+                }
+
+                // Créer le lien de parrainage en utilisant l'URL du frontend
+                $referralLink = $frontendUrl . "/register?referral_code=" . $referralCode;
                 UserPack::create([
                     'user_id' => $admin->id,
                     'pack_id' => $pack->id,
                     'referral_prefix' => 'SPR',
                     'referral_pack_name' => $pack->name,
-                    'referral_letter' => 'A',
-                    'referral_number' => 1,
-                    'referral_code' => sprintf("SPR-%s-A-0001", strtoupper(substr($pack->name, 0, 3))),
+                    'referral_letter' => $referralLetter,
+                    'referral_number' => $referralNumber,
+                    'referral_code' => $referralCode,
+                    'link_referral' => $referralLink,
+                    'status' => 'active',
+                    'purchase_date' => now(),
+                    'expiry_date' => null,
                     'payment_status' => 'completed',
-                    'purchase_date' => now()
+                    'is_admin_pack' => true,
                 ]);
             }
         });

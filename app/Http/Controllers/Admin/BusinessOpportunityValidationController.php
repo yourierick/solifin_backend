@@ -73,11 +73,14 @@ class BusinessOpportunityValidationController extends Controller
         // Notifier l'utilisateur que sa publication a été approuvée
         $user = User::find($opportuniteAffaire->user->id);
         $user->notify(new PublicationStatusChanged([
-            'type' => 'opportunites_affaires',
+            'type' => [
+                    'partenariat' => 'Opportunité de partenariat',
+                    'appel_projet' => 'Appel à projet',
+                ][$opportuniteAffaire->type] ?? 'Opportunité d\'affaire',
             'id' => $opportuniteAffaire->id,
             'titre' => $opportuniteAffaire->titre,
             'statut' => 'approuvé',
-            'message' => 'Votre opportunité d\'affaire a été approuvée et est maintenant visible par tous les utilisateurs pendant '. $publicite->duree_affichage . ' jours.'
+            'message' => 'Votre opportunité d\'affaire a été approuvée et est maintenant visible par tous les utilisateurs pendant '. $opportuniteAffaire->duree_affichage . ' jours.'
         ]));
         
         return response()->json([
@@ -114,7 +117,10 @@ class BusinessOpportunityValidationController extends Controller
         // Notifier l'utilisateur que sa publication a été rejetée
         $user = User::find($opportuniteAffaire->user->id);
         $user->notify(new PublicationStatusChanged([
-            'type' => 'opportunites_affaires',
+            'type' => [
+                    'partenariat' => 'Opportunité de partenariat',
+                    'appel_projet' => 'Appel à projet',
+                ][$opportuniteAffaire->type] ?? 'Opportunité d\'affaire',
             'id' => $opportuniteAffaire->id,
             'titre' => $opportuniteAffaire->titre,
             'statut' => 'rejeté',
@@ -155,7 +161,10 @@ class BusinessOpportunityValidationController extends Controller
         // Notifier l'utilisateur que le statut de sa publication a été modifié
         $user = User::find($opportuniteAffaire->user->id);
         $user->notify(new PublicationStatusChanged([
-            'type' => 'opportunites_affaires',
+            'type' => [
+                    'partenariat' => 'Opportunité de partenariat',
+                    'appel_projet' => 'Appel à projet',
+                ][$opportuniteAffaire->type] ?? 'Opportunité d\'affaire',
             'id' => $opportuniteAffaire->id,
             'titre' => $opportuniteAffaire->titre,
             'statut' => $request->statut,

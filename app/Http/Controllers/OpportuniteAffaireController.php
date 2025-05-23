@@ -90,15 +90,13 @@ class OpportuniteAffaireController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
+            'type' => 'required|in:opportunité,appel_projet,partenariat',
             'titre' => 'required|string|max:255',
+            'reference' => 'required|string|max:255',
             'secteur' => 'required|string|max:255',
+            'pays' => 'required|string|max:255',
+            'ville' => 'required|string|max:255',
             'description' => 'required|string',
-            'benefices_attendus' => 'required|string',
-            'investissement_requis' => 'nullable|numeric',
-            'devise' => 'nullable|string|max:5',
-            'duree_retour_investissement' => 'nullable|string|max:255',
-            'image' => 'nullable|image|max:5120', // 5MB max
-            'localisation' => 'nullable|string|max:255',
             'contacts' => 'required|string',
             'email' => 'nullable|email',
             'opportunity_file' => 'nullable|file|mimes:pdf|max:5000', // 5MB max
@@ -147,11 +145,13 @@ class OpportuniteAffaireController extends Controller
         $data['page_id'] = $page->id;
         $data['statut'] = 'en_attente';
         $data['etat'] = 'disponible';
-        
-        // Traitement de l'image
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('opportunites/images', 'public');
-            $data['image'] = $path;
+
+        // Définir la durée d'affichage basée sur le pack de publication de l'utilisateur
+        if ($user->pack_de_publication) {
+            $data['duree_affichage'] = $user->pack_de_publication->duree_publication_en_jour;
+        } else {
+            // Valeur par défaut si le pack n'est pas disponible
+            $data['duree_affichage'] = 1; // 1 jour par défaut
         }
 
         // Traitement du fichier PDF
@@ -166,7 +166,10 @@ class OpportuniteAffaireController extends Controller
         $admins = \App\Models\User::where('is_admin', true)->get();
         foreach ($admins as $admin) {
             $admin->notify(new \App\Notifications\PublicationSubmitted([
-                'type' => 'opportunite_affaire',
+                'type' => [
+                    'partenariat' => 'Opportunité de partenariat',
+                    'appel_projet' => 'Appel à projet',
+                ][$opportunite->type] ?? 'Opportunité d\'affaire',
                 'id' => $opportunite->id,
                 'titre' => "Opportunité d'affaire, Secteur: " . $opportunite->secteur,
                 'message' => 'est en attente d\'approbation.',
@@ -191,21 +194,13 @@ class OpportuniteAffaireController extends Controller
     public function show($id)
     {
         $opportunite = OpportuniteAffaire::with('page.user')->findOrFail($id);
-        
-        // Ajouter l'URL complète de l'image si elle existe
-        if ($opportunite->image) {
-            $opportunite->image_url = asset('storage/' . $opportunite->image);
-        }
-        
-        // Ajouter l'URL complète de la vidéo si elle existe
-        if ($opportunite->video) {
-            $opportunite->video_url = asset('storage/' . $opportunite->video);
-        }
-
+    
         // Ajouter l'URL complète du fichier PDF si elle existe
         if ($opportunite->opportunity_file) {
             $opportunite->opportunity_file_url = asset('storage/' . $opportunite->opportunity_file);
         }
+
+        $opportunite->post_type = $opportunite->type;
         
         return response()->json([
             'success' => true,
@@ -235,15 +230,14 @@ class OpportuniteAffaireController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
+            'entreprise' => 'nullable|string|max:255',
+            'type' => 'nullable|in:opportunité,appel_projet,partenariat',
             'titre' => 'nullable|string|max:255',
+            'reference' => 'nullable|string|max:255',
             'secteur' => 'nullable|string|max:255',
+            'pays' => 'nullable|string|max:255',
+            'ville' => 'nullable|string|max:255',
             'description' => 'nullable|string',
-            'benefices_attendus' => 'nullable|string',
-            'investissement_requis' => 'nullable|numeric',
-            'devise' => 'nullable|string|max:5',
-            'duree_retour_investissement' => 'nullable|string|max:255',
-            'image' => 'nullable|image|max:5120',
-            'localisation' => 'nullable|string|max:255',
             'contacts' => 'nullable|string',
             'email' => 'nullable|email',
             'opportunity_file' => 'nullable|file|mimes:pdf|max:5000', // 5MB max
@@ -264,25 +258,8 @@ class OpportuniteAffaireController extends Controller
         $data = $request->except(['image', 'opportunity_file']);
         
         // Si l'utilisateur n'est pas admin, l'opportunité revient en attente si certains champs sont modifiés
-        if (!$user->is_admin && $request->has(['titre', 'description', 'investissement_requis'])) {
+        if (!$user->is_admin && $request->has(['titre', 'description'])) {
             $data['statut'] = 'en_attente';
-        }
-        
-        // Traitement de l'image
-        if ($request->hasFile('image')) {
-            // Supprimer l'ancienne image si elle existe
-            if ($opportunite->image) {
-                Storage::disk('public')->delete($opportunite->image);
-            }
-            
-            $path = $request->file('image')->store('opportunites/images', 'public');
-            $data['image'] = $path;
-        } else if ($request->has('remove_image') && $request->input('remove_image') == '1') {
-            // Supprimer l'image sans la remplacer
-            if ($opportunite->image) {
-                Storage::disk('public')->delete($opportunite->image);
-                $data['image'] = null;
-            }
         }
 
         // Traitement du fichier PDF
@@ -302,25 +279,6 @@ class OpportuniteAffaireController extends Controller
             }
         }
         
-        // Traitement de la vidéo
-        if ($request->hasFile('video')) {
-            // Supprimer l'ancienne vidéo si elle existe
-            if ($opportunite->video) {
-                Storage::disk('public')->delete($opportunite->video);
-            }
-            
-            $path = $request->file('video')->store('opportunites/videos', 'public');
-            $data['video'] = $path;
-        } else if ($request->has('remove_video') && $request->input('remove_video') == '1') {
-            // Supprimer la vidéo sans la remplacer
-            if ($opportunite->video) {
-                Storage::disk('public')->delete($opportunite->video);
-                $data['video'] = null;
-            }
-        }
-        
-        $data['devise'] = $request->devise;
-        $data['duree_retour_investissement'] = $request->duree_retour_investissement;
         $data['lien'] = $request->lien;
         $opportunite->update($data);
         
@@ -696,6 +654,7 @@ class OpportuniteAffaireController extends Controller
         $post->likes_count = OpportuniteAffaireLike::where('opportunite_affaire_id', $post->id)->count();
 
         // Type de publication
+        $post->post_type = $post->type;
         $post->type = "opportunites-affaires";
         $post->external_link = $post->lien;
 

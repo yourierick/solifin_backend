@@ -85,6 +85,14 @@ class PageController extends Controller
             }
         }
 
+        if ($page->opportunitesAffaires) {
+            foreach ($page->opportunitesAffaires as $opportunite) {
+                if ($opportunite->opportunity_file) {
+                    $opportunite->opportunity_file_url = asset('storage/' . $opportunite->opportunity_file);
+                }
+            }
+        }
+
         // Calculer le nombre total de likes pour cette page
         $totalLikes = $this->calculateTotalLikes($page);
         
@@ -192,6 +200,7 @@ class PageController extends Controller
             $publicite->likes_count = PubliciteLike::where('publicite_id', $publicite->id)->count();
             $publicite->comments_count = PubliciteComment::where('publicite_id', $publicite->id)->count();
             $publicite->shares_count = PubliciteShare::where('publicite_id', $publicite->id)->count();
+            $publicite->post_type = $publicite->type;
             $publicite->type = "publicites";
             // Vérifier si l'utilisateur connecté a aimé cette publication
             if ($userId) {
@@ -214,13 +223,17 @@ class PageController extends Controller
                 });
         }
         
-        // Traitement des images pour les offres d'emploi
+        // Traitement des fichiers pour les offres d'emploi
         foreach ($page->offresEmploi as $offre) {
             // Ajouter les statistiques de likes et commentaires
             $offre->likes_count = OffreEmploiLike::where('offre_emploi_id', $offre->id)->count();
             $offre->comments_count = OffreEmploiComment::where('offre_emploi_id', $offre->id)->count();
             $offre->shares_count = OffreEmploiShare::where('offre_emploi_id', $offre->id)->count();
+            $offre->post_type = $offre->type;
             $offre->type = "offres-emploi";
+            if ($offre->offer_file) {
+                $offre->offer_file_url = asset('storage/' . $offre->offer_file);
+            }
             // Vérifier si l'utilisateur connecté a aimé cette publication
             if ($userId) {
                 $offre->liked_by_current_user = OffreEmploiLike::where('offre_emploi_id', $offre->id)
@@ -242,32 +255,20 @@ class PageController extends Controller
                 });
         }
 
-        // Traitement des images pour les opportunités d'affaires
+        // Traitement des fichiers pour les opportunités d'affaires
         foreach ($page->opportunitesAffaires as $opportunite) {
-            // Ajouter les URLs des images
-            if ($opportunite->image) {
-                $baseUrl = url('/');
-                
-                // Vérifier si l'image est un JSON (tableau d'images) ou une chaîne simple
-                if (is_string($opportunite->image) && json_decode($opportunite->image) !== null) {
-                    $imageArray = json_decode($opportunite->image, true);
-                    $opportunite->images = [];
-                    foreach ($imageArray as $img) {
-                        $opportunite->images[] = asset('storage/' . $img);
-                    }
-                    $opportunite->image = $opportunite->images[0] ?? null;
-                    $opportunite->image_url = $opportunite->image;
-                } else {
-                    $opportunite->image = asset('storage/' . $opportunite->image);
-                    $opportunite->image_url = $opportunite->image;
-                    $opportunite->images = [$opportunite->image];
-                }
+            // Ajouter les URLs des fichiers
+            if ($opportunite->opportunity_file) {
+                $opportunite->opportunity_file_url = asset('storage/' . $opportunite->opportunity_file);
             }
+
+
             
             // Ajouter les statistiques de likes et commentaires
             $opportunite->likes_count = OpportuniteAffaireLike::where('opportunite_affaire_id', $opportunite->id)->count();
             $opportunite->comments_count = OpportuniteAffaireComment::where('opportunite_affaire_id', $opportunite->id)->count();
             $opportunite->shares_count = OpportuniteAffaireShare::where('opportunite_affaire_id', $opportunite->id)->count();
+            $opportunite->post_type = $opportunite->type;
             $opportunite->type = "opportunites-affaires";
             // Vérifier si l'utilisateur connecté a aimé cette publication
             if ($userId) {

@@ -103,11 +103,11 @@ class JobOfferValidationController extends Controller
         // Notifier l'utilisateur que sa publication a été approuvée
         $user = User::find($offreEmploi->user->id);
         $user->notify(new PublicationStatusChanged([
-            'type' => 'offres_emploi',
+            'type' => $offreEmploi->type === "offre_emploi" ? "Offre d'emploi": "Appel à manifestation d'intérêt",
             'id' => $offreEmploi->id,
             'titre' => $offreEmploi->titre,
             'statut' => 'approuve',
-            'message' => 'Votre offre d\'emploi a été approuvée et est maintenant visible par tous les utilisateurs pendant '. $publicite->duree_affichage . ' jours.'
+            'message' => 'Votre offre d\'emploi a été approuvée et est maintenant visible par tous les utilisateurs pendant '. $offreEmploi->duree_affichage . ' jours.'
         ]));
         
         return response()->json([
@@ -144,7 +144,7 @@ class JobOfferValidationController extends Controller
         // Notifier l'utilisateur que sa publication a été rejetée
         $user = User::find($offreEmploi->user->id);
         $user->notify(new PublicationStatusChanged([
-            'type' => 'offres_emploi',
+            'type' => $offreEmploi->type === "offre_emploi" ? "Offre d'emploi": "Appel à manifestation d'intérêt",
             'id' => $offreEmploi->id,
             'titre' => $offreEmploi->titre,
             'statut' => 'rejeté',
@@ -185,7 +185,7 @@ class JobOfferValidationController extends Controller
         // Notifier l'utilisateur que le statut de sa publication a été modifié
         $user = User::find($offreEmploi->user->id);
         $user->notify(new PublicationStatusChanged([
-            'type' => 'offres_emploi',
+            'type' => $offreEmploi->type === "offre_emploi" ? "Offre d'emploi": "Appel à manifestation d'intérêt",
             'id' => $offreEmploi->id,
             'titre' => $offreEmploi->titre,
             'statut' => $request->statut,

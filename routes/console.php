@@ -55,7 +55,7 @@ Schedule::command('solifin:process-bonus-points yearly')
 // Planification du traitement des invitations à témoigner
 // Vérification quotidienne des utilisateurs éligibles (tous les jours à 02:00)
 Schedule::command('testimonials:process-prompts --expire')
-    ->everyMinute()
+    ->dailyAt('00:15')
     ->appendOutputTo(storage_path('logs/testimonial-prompts.log'))
     ->description('Vérifie les utilisateurs éligibles et crée des invitations à témoigner');
 

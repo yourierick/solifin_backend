@@ -18,28 +18,26 @@ class OpportuniteAffaire extends Model
 
     protected $fillable = [
         'page_id',
-        'titre',
+        'type',
+        'pays',
+        'ville',
         'secteur',
+        'entreprise',
+        'titre',
+        'reference',
         'description',
-        'benefices_attendus',
-        'investissement_requis',
-        'devise',
-        'duree_retour_investissement',
-        'image',
-        'localisation',
         'contacts',
         'email',
         'opportunity_file',
         'lien',
-        'conditions_participation',
         'date_limite',
         'statut',
         'raison_rejet',
         'etat',
+        'duree_affichage',
     ];
 
     protected $casts = [
-        'investissement_requis' => 'float',
         'date_limite' => 'date',
     ];
 

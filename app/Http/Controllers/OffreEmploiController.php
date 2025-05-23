@@ -89,18 +89,15 @@ class OffreEmploiController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
+            'type' => 'required|in:offre_emploi,appel_manifestation_intéret',
             'titre' => 'required|string|max:255',
             'reference' => 'nullable|string|max:255',
             'entreprise' => 'required|string|max:255',
-            'lieu' => 'required|string|max:255',
+            'pays' => 'required|string|max:255',
+            'ville' => 'required|string|max:255',
+            'secteur' => 'required|string|max:255',
             'type_contrat' => 'required|string|max:255',
             'description' => 'required|string',
-            'competences_requises' => 'required|string',
-            'experience_requise' => 'required|string|max:255',
-            'niveau_etudes' => 'nullable|string|max:255',
-            'salaire' => 'nullable|string|max:255',
-            'devise' => 'nullable|string|max:5',
-            'avantages' => 'nullable|string',
             'date_limite' => 'nullable|date',
             'email_contact' => 'required|email',
             'contacts' => 'nullable|string|max:255',
@@ -144,10 +141,20 @@ class OffreEmploiController extends Controller
             ]);
         }
 
+        
+
         $data = $request->all();
         $data['page_id'] = $page->id;
         $data['statut'] = 'en_attente';
         $data['etat'] = 'disponible';
+
+        // Définir la durée d'affichage basée sur le pack de publication de l'utilisateur
+        if ($user->pack_de_publication) {
+            $data['duree_affichage'] = $user->pack_de_publication->duree_publication_en_jour;
+        } else {
+            // Valeur par défaut si le pack n'est pas disponible
+            $data['duree_affichage'] = 1; // 1 jour par défaut
+        }
         
         // Traitement du fichier PDF
         if ($request->hasFile('offer_file') && $request->file('offer_file')->isValid()) {
@@ -163,7 +170,7 @@ class OffreEmploiController extends Controller
         $admins = \App\Models\User::where('is_admin', true)->get();
         foreach ($admins as $admin) {
             $admin->notify(new \App\Notifications\PublicationSubmitted([
-                'type' => 'offre_emploi',
+                'type' => $offre->type === "offre_emploi" ? "Offre d'emploi": "Appel à manifestation d'intérêt",
                 'id' => $offre->id,
                 'titre' => "Offre d'emploi, référence : " . $offre->reference,
                 'message' => 'est en attente d\'approbation.',
@@ -193,16 +200,8 @@ class OffreEmploiController extends Controller
         if ($offre->offer_file) {
             $offre->offer_file_url = asset('storage/' . $offre->offer_file);
         }
-        
-        // Ajouter l'URL complète de l'image si elle existe
-        if ($offre->image) {
-            $offre->image_url = asset('storage/' . $offre->image);
-        }
-        
-        // Ajouter l'URL complète de la vidéo si elle existe
-        if ($offre->video) {
-            $offre->video_url = asset('storage/' . $offre->video);
-        }
+
+        $offre->post_type = $offre->type;
         
         return response()->json([
             'success' => true,
@@ -231,18 +230,15 @@ class OffreEmploiController extends Controller
         // }
 
         $validator = Validator::make($request->all(), [
+            'type' => 'nullable|in:offre_emploi,appel_manifestation_intéret',
             'titre' => 'nullable|string|max:255',
             'reference' => 'nullable|string|max:255',
             'entreprise' => 'nullable|string|max:255',
-            'lieu' => 'nullable|string|max:255',
+            'pays' => 'nullable|string|max:255',
+            'ville' => 'nullable|string|max:255',
+            'secteur' => 'nullable|string|max:255',
             'type_contrat' => 'nullable|string|max:255',
             'description' => 'nullable|string',
-            'competences_requises' => 'nullable|string',
-            'experience_requise' => 'nullable|string|max:255',
-            'niveau_etudes' => 'nullable|string|max:255',
-            'salaire' => 'nullable|string|max:255',
-            'devise' => 'nullable|string|max:5',
-            'avantages' => 'nullable|string',
             'date_limite' => 'nullable|date',
             'email_contact' => 'nullable|email',
             'contacts' => 'nullable|string|max:255',
@@ -264,40 +260,6 @@ class OffreEmploiController extends Controller
         // Si l'utilisateur n'est pas admin, l'offre revient en attente si certains champs sont modifiés
         if (!$user->is_admin && $request->has(['titre', 'description', 'competences_requises'])) {
             $data['statut'] = 'en_attente';
-        }
-        
-        // Traitement de l'image
-        if ($request->hasFile('image')) {
-            // Supprimer l'ancienne image si elle existe
-            if ($offre->image) {
-                \Storage::disk('public')->delete($offre->image);
-            }
-            
-            $path = $request->file('image')->store('offres/images', 'public');
-            $data['image'] = $path;
-        } else if ($request->has('remove_image') && $request->input('remove_image') == '1') {
-            // Supprimer l'image sans la remplacer
-            if ($offre->image) {
-                \Storage::disk('public')->delete($offre->image);
-                $data['image'] = null;
-            }
-        }
-        
-        // Traitement de la vidéo
-        if ($request->hasFile('video')) {
-            // Supprimer l'ancienne vidéo si elle existe
-            if ($offre->video) {
-                \Storage::disk('public')->delete($offre->video);
-            }
-            
-            $path = $request->file('video')->store('offres/videos', 'public');
-            $data['video'] = $path;
-        } else if ($request->has('remove_video') && $request->input('remove_video') == '1') {
-            // Supprimer la vidéo sans la remplacer
-            if ($offre->video) {
-                \Storage::disk('public')->delete($offre->video);
-                $data['video'] = null;
-            }
         }
         
         // Traitement du fichier PDF
@@ -686,6 +648,7 @@ class OffreEmploiController extends Controller
         $post->likes_count = OffreEmploiLike::where('offre_emploi_id', $post->id)->count();
 
         // Type de publication
+        $post->post_type = $post->type;
         $post->type = "offres-emploi";
 
         // Vérifier si l'utilisateur a aimé cette publication
@@ -705,7 +668,7 @@ class OffreEmploiController extends Controller
         $post->shares_count = OffreEmploiShare::where('offre_emploi_id', $post->id)->count();
         
         // Ajouter les informations détaillées de l'offre d'emploi
-        $post->titre = $post->title;
+        $post->titre = $post->titre;
         $post->company_name = $post->entreprise;
         $post->location = $post->location;
         $post->type_contrat = $post->type_contrat;

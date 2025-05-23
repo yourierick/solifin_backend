@@ -18,7 +18,12 @@ class Publicite extends Model
 
     protected $fillable = [
         'page_id',
+        'pays',
+        'ville',
+        'type',
         'categorie',
+        'sous_categorie',
+        'autre_sous_categorie',
         'titre',
         'description',
         'image',
