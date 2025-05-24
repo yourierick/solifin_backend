@@ -36,6 +36,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'province',
         'ville',
         'address',
+        'apropos',
         'status',
         'pack_de_publication_id',
         'is_admin',

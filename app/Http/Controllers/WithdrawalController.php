@@ -531,20 +531,30 @@ class WithdrawalController extends Controller
         try {
             // Récupérer le paramètre withdrawal_commission
             $setting = Setting::where('key', 'withdrawal_commission')->first();
+            $user = Auth::user();
             
-            if ($setting) {
+            //Pour un administrateur, il n'y a pas de frais de commission sur retrait
+            if ($user->is_admin) {
                 return response()->json([
                     'success' => true,
-                    'percentage' => (float) $setting->value,
-                    'description' => $setting->description
+                    'percentage' => (float) 0,
+                    'description' => "admin account"
                 ]);
-            } else {
-                // Si le paramètre n'est pas défini, retourner 0%
-                return response()->json([
-                    'success' => true,
-                    'percentage' => 0,
-                    'description' => 'Pourcentage de commission de parrainage (valeur par défaut)'
-                ]);
+            }else {
+                if ($setting) {
+                    return response()->json([
+                        'success' => true,
+                        'percentage' => (float) $setting->value,
+                        'description' => $setting->description
+                    ]);
+                } else {
+                    // Si le paramètre n'est pas défini, retourner 0%
+                    return response()->json([
+                        'success' => true,
+                        'percentage' => 0,
+                        'description' => 'Pourcentage de commission de parrainage (valeur par défaut)'
+                    ]);
+                }
             }
         } catch (\Exception $e) {
             Log::error('Erreur lors de la récupération du pourcentage de commission de parrainage', [

@@ -87,6 +87,9 @@ Route::middleware('throttle:api')->group(function () {
 // Route publique pour vérifier une invitation par son code
 Route::post('/check-invitation', [\App\Http\Controllers\ReferralInvitationController::class, 'checkInvitation']);
 
+// Route publique pour récupérer les packs administrateurs avec leurs codes de parrainage
+Route::get('/admin-packs', [\App\Http\Controllers\Admin\PackController::class, 'getAdminPacks']);
+
 // Routes protégées
 Route::middleware('auth:sanctum')->group(function () {
     // Route pour vérifier l'authentification
@@ -350,13 +353,6 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::delete('/transaction-fees/{id}', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'destroy']);
     Route::post('/transaction-fees/{id}/toggle-active', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'toggleActive']);
     Route::post('/transaction-fees/update-from-api', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'updateFromApi']);
-    
-    // Gestion des publications
-    // Route::get('/posts', [App\Http\Controllers\AdminPostController::class, 'index']);
-    // Route::get('/posts/{id}', [App\Http\Controllers\AdminPostController::class, 'show']);
-    // Route::post('/posts/{id}/approve', [App\Http\Controllers\AdminPostController::class, 'approve']);
-    // Route::post('/posts/{id}/reject', [App\Http\Controllers\AdminPostController::class, 'reject']);
-    // Route::delete('/posts/{id}', [App\Http\Controllers\AdminPostController::class, 'destroy']);
     
     // Gestion des packs
     Route::apiResource('packs', \App\Http\Controllers\Admin\PackController::class);

@@ -37,10 +37,10 @@ class LoginController extends Controller
         // Vérifier si le compte est actif
         if ($user->status !== 'active') {
             // throw ValidationException::withMessages([
-            //     'login' => ['Ce compte a été désactivé, veuillez contacter l\'administrateur pour sa réactivation.'],
+            //     'login' => ['Ce compte a été désactivé, veuillez contacter l\'équipe SOLIFIN pour sa réactivation.'],
             // ]);
             return response()->json([
-                'message' => 'Ce compte a été désactivé, veuillez contacter l\'administrateur pour sa réactivation.'
+                'message' => 'Ce compte a été désactivé, veuillez contacter l\'équipe SOLIFIN pour sa réactivation.'
             ]);
         }
         

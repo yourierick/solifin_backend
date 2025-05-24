@@ -369,4 +369,46 @@ class PackController extends Controller
             'message' => 'Taux de bonus supprimé avec succès'
         ]);
     }
+    
+    /**
+     * Récupère les packs administrateurs avec leurs codes de parrainage
+     * Cette API est utilisée pour afficher les codes sponsors disponibles lors de l'inscription
+     * 
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getAdminPacks()
+    {
+        try {
+            // Récupérer les utilisateurs administrateurs
+            $admins = User::where('is_admin', true)->pluck('id');
+            
+            // Récupérer les packs actifs avec leurs codes de parrainage pour les administrateurs
+            $adminPacks = UserPack::whereIn('user_id', $admins)
+                ->where('is_admin_pack', true)
+                ->where('user_packs.status', 'active') // Spécifier explicitement la table pour éviter l'ambigüïté
+                ->join('packs', 'user_packs.pack_id', '=', 'packs.id')
+                ->where('packs.status', true) // Seulement les packs actifs
+                ->select(
+                    'packs.id',
+                    'packs.name',
+                    'packs.description',
+                    'packs.categorie',
+                    'user_packs.referral_code'
+                )
+                ->get();
+            
+            return response()->json([
+                'success' => true,
+                'packs' => $adminPacks
+            ]);
+        } catch (\Exception $e) {
+            \Log::error($e->getMessage());
+            \Log::error($e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des packs administrateurs',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

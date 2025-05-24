@@ -24,6 +24,7 @@ return new class extends Migration
             $table->string('province')->nullable();
             $table->string('ville')->nullable();
             $table->text('address')->nullable();
+            $table->text('apropos')->nullable();
             $table->string('acquisition_source')->nullable()->comment('Comment l\'utilisateur a connu SOLIFIN');
             $table->text('picture')->nullable();
             $table->boolean('is_admin')->default(false);

@@ -28,6 +28,7 @@ class UpdateProfileRequest extends FormRequest
             'pays' => ['sometimes', 'string'],
             'province' => ['sometimes', 'string'],
             'ville' => ['sometimes', 'string'],
+            'apropos' => ['sometimes', 'string'],
             'picture' => ['sometimes', 'nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'],
             'password' => ['sometimes', 'min:8', 'confirmed'],
             'pack_de_publication_id' => ['sometimes', 'exists:packs,id'],
