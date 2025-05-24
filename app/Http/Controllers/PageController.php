@@ -262,8 +262,6 @@ class PageController extends Controller
                 $opportunite->opportunity_file_url = asset('storage/' . $opportunite->opportunity_file);
             }
 
-
-            
             // Ajouter les statistiques de likes et commentaires
             $opportunite->likes_count = OpportuniteAffaireLike::where('opportunite_affaire_id', $opportunite->id)->count();
             $opportunite->comments_count = OpportuniteAffaireComment::where('opportunite_affaire_id', $opportunite->id)->count();

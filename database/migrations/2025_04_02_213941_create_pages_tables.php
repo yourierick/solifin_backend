@@ -117,13 +117,12 @@ return new class extends Migration
         Schema::create('social_events', function (Blueprint $table) {
             $table->id();
             $table->foreignId('page_id')->constrained()->onDelete('cascade');
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->string('image')->nullable();
             $table->string('video')->nullable();
             $table->string('description', 1000)->nullable();
             $table->enum('statut', ['en_attente', 'approuvé', 'rejeté', 'expiré'])->default('en_attente');
             $table->string('raison_rejet')->nullable();
-            $table->enum('etat', ['disponible', 'terminé'])->default('disponible');
-            $table->integer('duree_affichage')->comment('Durée en jours'); 
             $table->timestamps();
         });
     }

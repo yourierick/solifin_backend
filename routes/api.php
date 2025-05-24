@@ -199,6 +199,26 @@ Route::middleware('auth:sanctum')->group(function () {
     // Routes pour les offres d'emploi
     Route::get('/offres-emploi', [App\Http\Controllers\OffreEmploiController::class, 'index']);
     Route::post('/offres-emploi', [App\Http\Controllers\OffreEmploiController::class, 'store']);
+    
+    // Routes pour le signalement des statuts sociaux
+    Route::get('/social-events/report-reasons', [App\Http\Controllers\SocialEventController::class, 'getReportReasons']);
+    Route::get('/social-events/liked', [App\Http\Controllers\SocialEventController::class, 'getLikedStatuses']);
+    Route::post('/social-events/{id}/report', [App\Http\Controllers\SocialEventController::class, 'report']);
+    Route::get('/social-events/{id}/check-reported', [App\Http\Controllers\SocialEventController::class, 'checkReported']);
+    
+    // Routes pour les statuts sociaux
+    Route::get('/social-events', [App\Http\Controllers\SocialEventController::class, 'index']);
+    Route::get('/social-events/my-page', [App\Http\Controllers\SocialEventController::class, 'myPageSocialEvents']);
+    Route::get('/social-events/followed-pages', [App\Http\Controllers\SocialEventController::class, 'followedPagesEvents']);
+    Route::post('/social-events', [App\Http\Controllers\SocialEventController::class, 'store']);
+    Route::get('/social-events/{id}', [App\Http\Controllers\SocialEventController::class, 'show']);
+    Route::put('/social-events/{id}', [App\Http\Controllers\SocialEventController::class, 'update']);
+    Route::delete('/social-events/{id}', [App\Http\Controllers\SocialEventController::class, 'destroy']);
+    Route::post('/social-events/{id}/like', [App\Http\Controllers\SocialEventController::class, 'like']);
+    Route::post('/social-events/{id}/unlike', [App\Http\Controllers\SocialEventController::class, 'unlike']);
+    Route::post('/social-events/{id}/view', [App\Http\Controllers\SocialEventController::class, 'recordView']);
+    Route::get('/social-events/{id}/views', [App\Http\Controllers\SocialEventController::class, 'getViewsCount']);
+    
     Route::get('/offres-emploi/{id}', [App\Http\Controllers\OffreEmploiController::class, 'show']);
     Route::get('/offres-emploi/{id}/details', [App\Http\Controllers\OffreEmploiController::class, 'details']);
     Route::put('/offres-emploi/{id}', [App\Http\Controllers\OffreEmploiController::class, 'update']);
@@ -249,6 +269,19 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     //Transfert de fonds entre wallets
+
+    // Routes pour les statuts sociaux
+    Route::prefix('social-events')->group(function () {
+        Route::get('/', [App\Http\Controllers\SocialEventController::class, 'index']);
+        Route::get('/my-page', [App\Http\Controllers\SocialEventController::class, 'myPageSocialEvents']);
+        Route::post('/', [App\Http\Controllers\SocialEventController::class, 'store']);
+        Route::get('/{id}', [App\Http\Controllers\SocialEventController::class, 'show']);
+        Route::post('/{id}', [App\Http\Controllers\SocialEventController::class, 'update']);
+        Route::delete('/{id}', [App\Http\Controllers\SocialEventController::class, 'destroy']);
+        Route::post('/{id}/like', [App\Http\Controllers\SocialEventController::class, 'like']);
+        Route::delete('/{id}/like', [App\Http\Controllers\SocialEventController::class, 'unlike']);
+        Route::post('/{id}/share', [App\Http\Controllers\SocialEventController::class, 'share']);
+    });
     Route::post('/funds-transfer', [App\Http\Controllers\User\WalletUserController::class, 'funds_transfer']);
     Route::get('/recipient-info/{account_id}', [App\Http\Controllers\User\WalletUserController::class, 'getRecipientInfo']);
     Route::get('/sending-fee-percentage', [App\Http\Controllers\User\WalletUserController::class, 'getSendingFeePercentage']);
@@ -386,6 +419,13 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // Routes pour les opportunités d'affaires
     Route::get('/business-opportunities', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'index']);
     Route::post('/business-opportunities/{id}/approve', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'approve']);
+    
+    // Routes pour les statuts sociaux
+    Route::get('/social-events', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'index']);
+    Route::post('/social-events/{id}/approve', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'approve']);
+    Route::post('/social-events/{id}/reject', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'reject']);
+    Route::patch('/social-events/{id}/status', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'updateStatus']);
+    Route::delete('/social-events/{id}', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'destroy']);
     Route::post('/business-opportunities/{id}/reject', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'reject']);
     Route::patch('/business-opportunities/{id}/status', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateStatus']);
     Route::patch('/business-opportunities/{id}/etat', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateEtat']);

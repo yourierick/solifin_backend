@@ -6,17 +6,22 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class SocialEventLike extends Model
+class SocialEventView extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'user_id',
-        'social_event_id'
+        'social_event_id',
+        'viewed_at'
+    ];
+
+    protected $casts = [
+        'viewed_at' => 'datetime',
     ];
 
     /**
-     * Obtenir l'utilisateur qui a aimé cet événement social.
+     * Obtenir l'utilisateur qui a vu cet événement social.
      */
     public function user(): BelongsTo
     {
@@ -24,7 +29,7 @@ class SocialEventLike extends Model
     }
 
     /**
-     * Obtenir l'événement social qui a été aimé.
+     * Obtenir l'événement social qui a été vu.
      */
     public function socialEvent(): BelongsTo
     {

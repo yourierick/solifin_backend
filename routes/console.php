@@ -22,6 +22,10 @@ Schedule::command('transaction-fees:update')
     ->at('01:00')
     ->description('Met à jour les frais de transaction depuis l\'API externe tous les jours à 1h du matin');
 
+Schedule::command('app:delete-expired-social-events')
+    ->hourly()
+    ->description('Supprime les statuts sociaux de plus de 24 heures');
+
 Schedule::command('exchange:update')
     ->daily()
     ->at('01:30')
