@@ -18,7 +18,6 @@ return new class extends Migration
             $table->boolean('status')->default(true);
             $table->json('avantages');
             $table->integer('duree_publication_en_jour');
-            $table->string('formations')->nullable();
             $table->timestamps();
         });
 

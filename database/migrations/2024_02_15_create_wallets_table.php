@@ -20,7 +20,7 @@ return new class extends Migration
         Schema::create('wallet_transactions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('wallet_id')->constrained()->onDelete('cascade');
-            $table->enum('type', ['withdrawal', 'commission de parrainage', 'transfer', 'reception', 'commission de retrait', 'purchase', 'bonus']);
+            $table->enum('type', ['withdrawal', 'commission de parrainage', 'transfer', 'sale', 'reception', 'commission de retrait', 'purchase', 'bonus']);
             $table->decimal('amount', 10, 2);
             $table->enum('status', ['pending', 'completed', 'cancelled', 'failed'])->default('pending');
             $table->json('metadata')->nullable();

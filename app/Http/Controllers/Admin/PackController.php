@@ -49,16 +49,8 @@ class PackController extends Controller
                 'status' => 'required|boolean',
                 'avantages' => 'required|json',
                 'duree_publication_en_jour' => 'required|numeric|min:1',
-                'formations' => 'nullable|file|mimes:zip,rar,7z|max:102400',
                 'abonnement' => 'required|string|in:mensuel,trimestriel,semestriel,annuel',
             ]);
-
-
-            //Gérer le fichier de formations
-            if ($request->hasFile('formations')) {
-                $formationsPath = $request->file('formations')->store('formations', 'public');
-                $validated['formations'] = $formationsPath;
-            }
 
             // Créer le pack
             $pack = Pack::create([
@@ -69,7 +61,6 @@ class PackController extends Controller
                 'status' => $request->boolean('status'),
                 'avantages' => json_decode($request->avantages, true),
                 'duree_publication_en_jour' => $validated['duree_publication_en_jour'],
-                'formations' => $validated['formations'] ?? null,
                 'abonnement' => $validated['abonnement'],
             ]);
 
@@ -125,9 +116,6 @@ class PackController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            if (isset($formationsPath)) {
-                Storage::disk('public')->delete($formationsPath);
-            }
             
             Log::error('Erreur dans PackController@store: ' . $e->getMessage());
             return response()->json([
@@ -155,7 +143,6 @@ class PackController extends Controller
             'price' => 'required|numeric|min:0',
             'status' => 'required|boolean',
             'avantages' => 'required|json',
-            'formations' => 'nullable|file|mimes:zip,rar,7z|max:102400',
             'abonnement' => 'required|string|in:mensuel,trimestriel,semestriel,annuel',
         ]);
 
@@ -168,24 +155,6 @@ class PackController extends Controller
 
         try {
             DB::beginTransaction();
-
-            // Gérer le fichier des formations
-            if ($request->hasFile('formations')) {
-                // Supprimer l'ancien fichier s'il existe
-                if ($pack->formations && Storage::disk('public')->exists($pack->formations)) {
-                    Storage::disk('public')->delete($pack->formations);
-                }
-
-                $file = $request->file('formations');
-                $path = $file->store('formations', 'public');
-                $pack->formations = $path;
-            } elseif ($request->has('delete_formations') && $request->delete_formations) {
-                // Supprimer le fichier existant sans en ajouter un nouveau
-                if ($pack->formations && Storage::disk('public')->exists($pack->formations)) {
-                    Storage::disk('public')->delete($pack->formations);
-                }
-                $pack->formations = null;
-            }
 
             $pack->update([
                 'categorie' => $request->categorie,
@@ -218,11 +187,6 @@ class PackController extends Controller
     {
         try {
             DB::beginTransaction();
-
-            //Supprimer le fichier des formations s'il existe
-            if ($pack->formations && Storage::exists($pack->formations)) {
-                Storage::delete($pack->formations);
-            }
 
             $pack->delete();
 

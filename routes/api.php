@@ -96,6 +96,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         $user = $request->user();
         $user->picture = $user->getProfilePictureUrlAttribute();
+        
+        // Vérifier si c'est une vérification automatique d'authentification
+        // et non une activité utilisateur réelle
+        if ($request->query('check_only') === 'true' || $request->header('X-No-Activity-Update')) {
+            // Ne pas mettre à jour le timestamp de dernière activité de la session
+            // Cela permettra à la session d'expirer après la durée d'inactivité configurée
+            // même si des appels API automatiques sont effectués
+            //\Log::debug('Vérification d\'authentification sans mise à jour d\'activité pour l\'utilisateur ' . $user->id);
+        } else {
+            // Pour les requêtes normales, mettre à jour le timestamp de dernière activité
+            // Cela est géré automatiquement par Laravel, mais nous le journalisons pour débogage
+            //\Log::debug('Mise à jour du timestamp d\'activité pour l\'utilisateur ' . $user->id);
+        }
+        
         return $user;
     });
     
@@ -141,7 +155,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Routes pour les packs utilisateur
     Route::get('/user/packs', [\App\Http\Controllers\User\PackController::class, 'getUserPacks']);
     Route::post('/packs/{pack}/renew', [\App\Http\Controllers\User\PackController::class, 'renewPack']);
-    Route::get('/packs/{pack}/download', [\App\Http\Controllers\User\PackController::class, 'downloadPack']);
     Route::get('/packs/{pack}/referrals', [\App\Http\Controllers\User\PackController::class, 'getPackReferrals']);
     Route::get('/packs/{pack}/detailed-stats', [\App\Http\Controllers\User\PackController::class, 'getDetailedPackStats']);
     Route::post('/packs/purchase_a_new_pack', [\App\Http\Controllers\User\PackController::class, 'purchase_a_new_pack']);
@@ -202,6 +215,50 @@ Route::middleware('auth:sanctum')->group(function () {
     // Routes pour les offres d'emploi
     Route::get('/offres-emploi', [App\Http\Controllers\OffreEmploiController::class, 'index']);
     Route::post('/offres-emploi', [App\Http\Controllers\OffreEmploiController::class, 'store']);
+    
+    //Route pour ajouter un module à une formation
+    //Récupération des frais d'achat d'une formation
+    Route::get('/purchase-fee-percentage', [App\Http\Controllers\User\UserFormationController::class, 'getPurchaseFeePercentage']);
+    
+    //Récupération des formations achetées par l'utilisateur
+    Route::get('/formations/purchased', [App\Http\Controllers\User\UserFormationController::class, 'getPurchasedFormations']);
+    
+    // Routes pour les formations (utilisateur)
+    Route::prefix('formations')->group(function () {
+        //Route pour acheter une formation
+        Route::post('/purchase/{id}', [App\Http\Controllers\User\UserFormationController::class, 'purchase']);
+        
+        // Routes alternatives pour le composant QuizPlayer
+        Route::post('/modules/{moduleId}/quiz/submit', [\App\Http\Controllers\User\QuizController::class, 'submitAnswers']);
+        Route::get('/modules/{moduleId}/quiz/results', [\App\Http\Controllers\User\QuizController::class, 'getResults']);
+        Route::get('/modules/{moduleId}', [\App\Http\Controllers\User\UserFormationController::class, 'showModuleWithoutFormation']);
+        
+        // Accès aux formations disponibles
+        Route::get('/', [\App\Http\Controllers\User\UserFormationController::class, 'index']);
+        Route::get('/{id}', [\App\Http\Controllers\User\UserFormationController::class, 'show']);
+        Route::get('/{formationId}/modules/{moduleId}', [\App\Http\Controllers\User\UserFormationController::class, 'showModule']);
+        Route::post('/{formationId}/modules/{moduleId}/complete', [\App\Http\Controllers\User\UserFormationController::class, 'completeModule']);
+        Route::post('/{id}/purchase', [\App\Http\Controllers\User\UserFormationController::class, 'purchase']);
+        
+        // Gestion des formations créées par l'utilisateur
+        Route::get('/my/list', [\App\Http\Controllers\User\UserFormationController::class, 'myFormations']);
+        Route::post('/create', [\App\Http\Controllers\User\UserFormationController::class, 'store']);
+        Route::put('/{id}/update', [\App\Http\Controllers\User\UserFormationController::class, 'update']);
+        Route::post('/{id}/submit', [\App\Http\Controllers\User\UserFormationController::class, 'submit']);
+        
+        // Gestion des modules des formations créées par l'utilisateur
+        Route::get('/my/{formationId}/modules', [\App\Http\Controllers\User\UserModuleController::class, 'index']);
+        Route::post('/my/{formationId}/modules', [\App\Http\Controllers\User\UserModuleController::class, 'store']);
+        Route::get('/my/{formationId}/modules/{moduleId}', [\App\Http\Controllers\User\UserModuleController::class, 'show']);
+        Route::put('/my/{formationId}/modules/{moduleId}', [\App\Http\Controllers\User\UserModuleController::class, 'update']);
+        Route::delete('/my/{formationId}/modules/{moduleId}', [\App\Http\Controllers\User\UserModuleController::class, 'destroy']);
+        Route::post('/my/{formationId}/modules/reorder', [\App\Http\Controllers\User\UserModuleController::class, 'reorder']);
+        Route::post('/my/{formationId}/modules/{moduleId}/submit', [\App\Http\Controllers\User\UserModuleController::class, 'submit']);
+        
+        // Route pour les statistiques de formation
+        Route::get('/my/{formationId}/stats', [\App\Http\Controllers\User\FormationStatsController::class, 'getFormationStats']);
+    
+    });
     
     // Routes pour le signalement des statuts sociaux
     Route::get('/social-events/report-reasons', [App\Http\Controllers\SocialEventController::class, 'getReportReasons']);
@@ -490,4 +547,25 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/faq/categories', [\App\Http\Controllers\FaqController::class, 'storeCategory']);
     Route::put('/faq/categories/{id}', [\App\Http\Controllers\FaqController::class, 'updateCategory']);
     Route::delete('/faq/categories/{id}', [\App\Http\Controllers\FaqController::class, 'destroyCategory']);
+    
+    // Routes pour la gestion des formations (admin)
+    Route::prefix('/formations')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\FormationController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\Admin\FormationController::class, 'store']);
+        Route::get('/packs', [\App\Http\Controllers\Admin\FormationController::class, 'getPacks']);
+        Route::get('/pending/count', [\App\Http\Controllers\Admin\FormationController::class, 'pendingCount']);
+        Route::get('/{id}', [\App\Http\Controllers\Admin\FormationController::class, 'show']);
+        Route::put('/{id}', [\App\Http\Controllers\Admin\FormationController::class, 'update']);
+        Route::delete('/{id}', [\App\Http\Controllers\Admin\FormationController::class, 'destroy']);
+        Route::post('/{id}/review', [\App\Http\Controllers\Admin\FormationController::class, 'reviewFormation']);
+        Route::post('/{id}/publish', [\App\Http\Controllers\Admin\FormationController::class, 'publish']);
+        
+        // Routes pour la gestion des modules (admin)
+        Route::post('/{formationId}/modules', [\App\Http\Controllers\Admin\FormationModuleController::class, 'store']);
+        Route::get('/{formationId}/modules', [\App\Http\Controllers\Admin\FormationModuleController::class, 'index']);
+        Route::get('/{formationId}/modules/{moduleId}', [\App\Http\Controllers\Admin\FormationModuleController::class, 'show']);
+        Route::delete('/{formationId}/modules/{moduleId}', [\App\Http\Controllers\Admin\FormationModuleController::class, 'destroy']);
+        Route::post('/{formationId}/modules/reorder', [\App\Http\Controllers\Admin\FormationModuleController::class, 'reorder']);
+        Route::post('/{formationId}/modules/{moduleId}/review', [\App\Http\Controllers\Admin\FormationModuleController::class, 'reviewModule']);
+    });
 });

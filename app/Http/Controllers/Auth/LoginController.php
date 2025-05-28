@@ -60,6 +60,16 @@ class LoginController extends Controller
 
     public function logout(Request $request)
     {
+        // Vérifier si la déconnexion est due à l'inactivité
+        $reason = $request->query('reason');
+        $message = 'Déconnexion réussie';
+        
+        if ($reason === 'inactivity') {
+            $message = 'Session expiree par inactivite';
+            // Journaliser l'expiration de session pour debogage
+            //\Log::info('Session expiree pour utilisateur ' . (Auth::id() ?? 'inconnu') . ' apres 10 minutes inactivite');
+        }
+        
         // Déconnecter l'utilisateur avec le guard web
         Auth::guard('web')->logout();
         
@@ -68,7 +78,7 @@ class LoginController extends Controller
         $request->session()->regenerateToken();
 
         return response()->json([
-            'message' => 'Déconnexion réussie'
+            'message' => $message
         ]);
     }
 }

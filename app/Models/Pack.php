@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Pack extends Model
 {
@@ -19,7 +20,6 @@ class Pack extends Model
         'status',
         'avantages',
         'duree_publication_en_jour',
-        'formations',
         'abonnement'
     ];
 
@@ -59,6 +59,15 @@ class Pack extends Model
     public function commissionRates()
     {
         return $this->hasMany(CommissionRate::class);
+    }
+    
+    /**
+     * Relation avec les formations associées à ce pack
+     */
+    public function formations(): BelongsToMany
+    {
+        return $this->belongsToMany(Formation::class, 'formation_pack')
+                    ->withTimestamps();
     }
 
 

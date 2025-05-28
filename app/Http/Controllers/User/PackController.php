@@ -566,53 +566,6 @@ class PackController extends Controller
         }
     }
 
-    //téléchargement du pack (les formations et autres fichiers associés au pack)
-    public function downloadPack(Pack $pack, Request $request)
-    {
-        try {
-            
-            // Vérifier si l'utilisateur a accès à ce pack
-            $userPack = UserPack::where('user_id', $request->user()->id)
-                ->where('pack_id', $pack->id)
-                ->first();
-
-            if (!$userPack) {
-                \Log::warning('Accès refusé au pack ' . $pack->id . ' pour l\'utilisateur ' . $request->user()->id);
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vous n\'avez pas accès à ce pack'
-                ], 403);
-            }
-            
-            // Vérifier si le pack a un fichier associé
-            if (!$pack->formations) {
-                \Log::warning('Aucun fichier associé au pack ' . $pack->id);
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Le fichier du pack n\'est pas disponible'
-                ], 404);
-            }
-
-            if (!Storage::disk('public')->exists($pack->formations)) {
-                \Log::warning('Fichier non trouvé: ' . $pack->formations);
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Le fichier du pack n\'est pas disponible'
-                ], 404);
-            }
-
-            return Storage::disk('public')->download($pack->formations, "pack-{$pack->id}.zip");
-
-        } catch (\Exception $e) {
-            \Log::error('Erreur lors du téléchargement du pack: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors du téléchargement du pack'
-            ], 500);
-        }
-    }
-
     //récupérer les filleuls d'un pack
     public function getPackReferrals(Request $request, Pack $pack)
     {

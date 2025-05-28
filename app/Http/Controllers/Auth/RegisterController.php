@@ -8,6 +8,7 @@ use App\Models\UserPack;
 use App\Models\Wallet;
 use App\Models\WalletSystem;
 use App\Models\Pack;
+use App\Models\Page;
 use App\Models\ReferralInvitation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -128,6 +129,13 @@ class RegisterController extends Controller
 
             // Enregistrer le paiement dans le système
             $walletsystem = WalletSystem::first();
+            if (!$walletsystem) {
+                $walletsystem = WalletSystem::create([
+                    "balance" => 0,
+                    "total_in" => 0,
+                    "total_out" => 0,
+                ]);
+            }
             $walletsystem->addFunds($AmountInUSDWithoutSpecificFees, "sales", "completed", [
                 "user" => $validated["name"], 
                 "pack_id" => $pack->id, 
@@ -178,6 +186,14 @@ class RegisterController extends Controller
                 'balance' => 0,
                 'total_earned' => 0,
                 'total_withdrawn' => 0,
+            ]);
+
+            // Créer la page
+            Page::create([
+                'user_id' => $user->id,
+                'nombre_abonnes' => 0,
+                'nombre_likes' => 0,
+                'photo_de_couverture' => null,
             ]);
 
             $referralLetter = substr($pack->name, 0, 1);

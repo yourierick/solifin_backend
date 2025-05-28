@@ -17,7 +17,8 @@ class SettingsController extends Controller
         'boost_price',
         'withdrawal_fee_percentage',
         'sending_fee_percentage',
-        'transfer_fee_percentage'
+        'transfer_fee_percentage',
+        'purchase_fee_percentage',
     ];
 
     /**
@@ -85,7 +86,8 @@ class SettingsController extends Controller
             'withdrawal_commission', 
             'withdrawal_fee_percentage', 
             'sending_fee_percentage', 
-            'transfer_fee_percentage'
+            'transfer_fee_percentage',
+            'purchase_fee_percentage',
         ])) {
             $value = floatval($request->value);
             if ($value < 0 || $value > 100) {

@@ -33,7 +33,7 @@ return new class extends Migration
         Schema::create('wallet_system_transactions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('wallet_system_id')->constrained()->onDelete('cascade');
-            $table->enum('type', ['sales', 'withdrawal', 'frais de retrait', 'frais de transfert', 'commission de retrait', 'commission de parrainage', 'bonus', 'reception', 'transfer']);
+            $table->enum('type', ['sales', 'withdrawal', 'frais de retrait', 'frais de transfert', 'frais d achat', 'commission de retrait', 'commission de parrainage', 'bonus', 'reception', 'transfer']);
             $table->decimal('amount', 10, 2);
             $table->enum('status', ['pending', 'completed', 'failed'])->default('pending');
             $table->json('metadata')->nullable();
