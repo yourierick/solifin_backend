@@ -675,4 +675,89 @@ class JetonEsengoController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Récupère l'historique des tickets consommés
+     * Cette méthode est réservée aux administrateurs
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getHistoriqueTicketsConsommes(Request $request)
+    {
+        try {
+            // Récupérer les tickets consommés avec pagination
+            $perPage = $request->input('per_page', 10);
+            
+            // Construire la requête avec les filtres
+            $query = TicketGagnant::with('user', 'cadeau')->where('consomme', true);
+            
+            // Filtre par recherche textuelle
+            if ($request->has('search') && !empty($request->input('search'))) {
+                $search = $request->input('search');
+                $query->where(function($q) use ($search) {
+                    // Recherche dans le code de vérification
+                    $q->where('code_verification', 'like', "%{$search}%")
+                    // Recherche dans le nom du cadeau
+                    ->orWhereHas('cadeau', function($query) use ($search) {
+                        $query->where('nom', 'like', "%{$search}%");
+                    })
+                    // Recherche dans le nom ou email de l'utilisateur
+                    ->orWhereHas('user', function($query) use ($search) {
+                        $query->where('name', 'like', "%{$search}%")
+                              ->orWhere('email', 'like', "%{$search}%");
+                    });
+                });
+            }
+            
+            // Filtre par date de début
+            if ($request->has('date_debut') && !empty($request->input('date_debut'))) {
+                $dateDebut = $request->input('date_debut');
+                $query->whereDate('date_consommation', '>=', $dateDebut);
+            }
+            
+            // Filtre par date de fin
+            if ($request->has('date_fin') && !empty($request->input('date_fin'))) {
+                $dateFin = $request->input('date_fin');
+                $query->whereDate('date_consommation', '<=', $dateFin);
+            }
+            
+            // Exécuter la requête avec tri et pagination
+            $tickets = $query->orderBy('date_consommation', 'desc')
+                             ->paginate($perPage);
+
+            // Formater les données pour l'affichage
+            $tickets->getCollection()->transform(function ($ticket) {
+                return [
+                    'id' => $ticket->id,
+                    'code_verification' => $ticket->code_verification,
+                    'cadeau' => [
+                        'id' => $ticket->cadeau->id,
+                        'nom' => $ticket->cadeau->nom,
+                        'image_url' => $ticket->cadeau->image_url,
+                        'valeur' => $ticket->cadeau->valeur
+                    ],
+                    'user' => [
+                        'id' => $ticket->user->id,
+                        'name' => $ticket->user->name,
+                        'email' => $ticket->user->email
+                    ],
+                    'date_consommation' => $ticket->date_consommation->format('Y-m-d H:i:s'),
+                    'date_expiration' => $ticket->date_expiration->format('Y-m-d H:i:s')
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $tickets
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue lors de la récupération de l\'historique des tickets',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
