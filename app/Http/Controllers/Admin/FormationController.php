@@ -89,6 +89,7 @@ class FormationController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
+            'category' => 'required|string|max:255',
             'description' => 'required|string',
             'thumbnail' => 'nullable|image|max:2048', // Max 2MB
             'packs' => 'required|array',
@@ -111,6 +112,7 @@ class FormationController extends Controller
         // Création de la formation
         $formation = Formation::create([
             'title' => $request->title,
+            'category' => $request->category,
             'description' => $request->description,
             'thumbnail' => $thumbnailPath ? asset('storage/' . $thumbnailPath) : null,
             'status' => 'draft', // Les formations créées par l'admin sont publiées directement
@@ -138,20 +140,27 @@ class FormationController extends Controller
     public function update(Request $request, $id)
     {
         $formation = Formation::findOrFail($id);
-        
-        $validator = Validator::make($request->all(), [
+
+        $validationRules = [
             'title' => 'required|string|max:255',
+            'category' => 'required|string|max:255',
             'description' => 'required|string',
             'thumbnail' => 'nullable|image|max:2048', // Max 2MB
-            'packs' => 'required|array',
-            'packs.*' => 'exists:packs,id',
             'status' => 'nullable|in:draft,pending,published,rejected',
-        ]);
+        ];
         
+        // Ajouter la règle pour les packs si c'est une formation admin
+        if ($formation->type === 'admin') {
+            $validationRules['packs'] = 'required|array';
+            $validationRules['packs.*'] = 'exists:packs,id';
+        }
+        
+        $validator = Validator::make($request->all(), $validationRules);
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
+                'message' => 'Formulaire invalide'
             ], 422);
         }
         
@@ -169,6 +178,7 @@ class FormationController extends Controller
         
         // Mise à jour de la formation
         $formation->title = $request->title;
+        $formation->category = $request->category;
         $formation->description = $request->description;
         
         if ($request->has('status')) {

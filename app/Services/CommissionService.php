@@ -110,6 +110,7 @@ class CommissionService
                 'status' => 'completed',
                 'metadata' => [
                     "user" => $commission->source_user->name, 
+                    "bénéficiaire" => $commission->sponsor_user->name,
                     "Opération" => "Commission de parrainage",
                     "Montant" => $commission->amount, 
                     "Durée" => $duration_months

@@ -329,6 +329,7 @@ class UserFormationController extends Controller
         
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
+            'category' => 'required|string|max:255',
             'description' => 'required|string',
             'thumbnail' => 'nullable|image|max:2048', // Max 2MB
             'is_paid' => 'required',
@@ -351,6 +352,7 @@ class UserFormationController extends Controller
         // Création de la formation
         $formation = Formation::create([
             'title' => $request->title,
+            'category' => $request->category,
             'description' => $request->description,
             'thumbnail' => $thumbnailPath ? asset('storage/' . $thumbnailPath) : null,
             'status' => 'draft', // Les formations créées par les utilisateurs doivent être validées
@@ -389,6 +391,7 @@ class UserFormationController extends Controller
         
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
+            'category' => 'required|string|max:255',
             'description' => 'required|string',
             'thumbnail' => 'nullable|image|max:2048', // Max 2MB
             'is_paid' => 'required',
@@ -417,6 +420,7 @@ class UserFormationController extends Controller
         
         // Mise à jour de la formation
         $formation->title = $request->title;
+        $formation->category = $request->category;
         $formation->description = $request->description;
         $formation->is_paid = $request->is_paid === "true" ? 1:0;
         $formation->price = $request->is_paid === "true" ? $request->price : null;

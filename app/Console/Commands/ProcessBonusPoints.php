@@ -19,14 +19,14 @@ class ProcessBonusPoints extends Command
      *
      * @var string
      */
-    protected $signature = 'solifin:process-bonus-points {frequency? : Fréquence spécifique à traiter (daily, weekly, monthly, yearly)}';
+    protected $signature = 'solifin:process-bonus-points {frequency? : Fréquence spécifique à traiter (weekly, monthly)}';
 
     /**
      * La description de la commande console.
      *
      * @var string
      */
-    protected $description = 'Traite l\'attribution des points bonus selon la fréquence spécifiée ou toutes les fréquences';
+    protected $description = 'Traite l\'attribution des points bonus selon la fréquence spécifiée';
 
     /**
      * Le service d'attribution des points bonus.
@@ -61,8 +61,8 @@ class ProcessBonusPoints extends Command
         try {
             if ($frequency) {
                 // Vérifier que la fréquence est valide
-                if (!in_array($frequency, ['daily', 'weekly', 'monthly', 'yearly'])) {
-                    $this->error("Fréquence invalide: $frequency. Utilisez daily, weekly, monthly ou yearly.");
+                if (!in_array($frequency, ['weekly', 'monthly'])) {
+                    $this->error("Fréquence invalide: $frequency. Utilisez weekly ou monthly.");
                     return Command::FAILURE;
                 }
                 
@@ -71,21 +71,18 @@ class ProcessBonusPoints extends Command
             } else {
                 // Déterminer les fréquences à traiter en fonction du jour
                 $today = Carbon::now();
-                $frequencies = ['daily']; // Toujours traiter les bonus journaliers
+                $frequencies = [];
                 
-                // Si on est lundi, traiter les bonus hebdomadaires
+                // Si on est lundi, traiter les bonus sur délais (hebdomadaires)
                 if ($today->dayOfWeek === 1) { // 1 = Lundi
-                    $frequencies[] = 'weekly';
+                    $frequencies[] = 'weekly'; // Pour les bonus sur délais
+                    $this->info("Traitement des bonus sur délais (hebdomadaire)");
                 }
                 
-                // Si on est le premier jour du mois, traiter les bonus mensuels
+                // Si on est le premier jour du mois, traiter les jetons Esengo (mensuels)
                 if ($today->day === 1) {
-                    $frequencies[] = 'monthly';
-                }
-                
-                // Si on est le premier jour de l'année, traiter les bonus annuels
-                if ($today->day === 1 && $today->month === 1) {
-                    $frequencies[] = 'yearly';
+                    $frequencies[] = 'monthly'; // Pour les jetons Esengo
+                    $this->info("Traitement des jetons Esengo (mensuel)");
                 }
                 
                 $stats = ['users_processed' => 0, 'points_attributed' => 0, 'errors' => 0];
@@ -104,27 +101,17 @@ class ProcessBonusPoints extends Command
                 }
             }
             
-            $this->info('Traitement terminé avec succès.');
-            $this->info("Utilisateurs traités: {$stats['users_processed']}");
-            $this->info("Points attribués: {$stats['points_attributed']}");
+            $this->info("Traitement terminé. {$stats['users_processed']} utilisateurs traités, {$stats['points_attributed']} points attribués, {$stats['errors']} erreurs.");
             
             if ($stats['errors'] > 0) {
-                $this->warn("Erreurs rencontrées: {$stats['errors']}");
-                if (isset($stats['error_message'])) {
-                    $this->warn("Message d'erreur: {$stats['error_message']}");
-                }
+                return Command::FAILURE;
             }
-            
-            // Journaliser les résultats
-            Log::info('Attribution des points bonus terminée', $stats);
             
             return Command::SUCCESS;
         } catch (\Exception $e) {
-            $this->error('Une erreur est survenue lors du traitement des points bonus: ' . $e->getMessage());
-            Log::error('Erreur lors de l\'attribution des points bonus: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
-            
+            $this->error('Erreur lors du traitement des points bonus: ' . $e->getMessage());
+            Log::error('Erreur lors du traitement des points bonus: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
             return Command::FAILURE;
         }
     }

@@ -7,7 +7,6 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Auth\PasswordResetController;
-use App\Http\Controllers\Auth\VerificationController;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Cache\RateLimiting\Limit;
 use App\Http\Controllers\Admin\UserController;
@@ -176,6 +175,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/bonus-points-history', [\App\Http\Controllers\User\FinanceController::class, 'getBonusPointsHistory']);
         Route::get('/bonus-points-stats', [\App\Http\Controllers\User\FinanceController::class, 'getBonusPointsStats']);
         Route::get('/bonus-points-types', [\App\Http\Controllers\User\FinanceController::class, 'getBonusPointsTypes']);
+        
+        // Routes pour les jetons Esengo et tickets gagnants
+        Route::get('/jetons-esengo', [\App\Http\Controllers\JetonEsengoController::class, 'getJetonsEsengo']);
+        Route::get('/jetons-esengo/expired', [\App\Http\Controllers\JetonEsengoController::class, 'getExpiredJetons']);
+        Route::get('/jetons-esengo/used', [\App\Http\Controllers\JetonEsengoController::class, 'getUsedJetons']);
+        Route::get('/jetons-esengo/{jetonId}/history', [\App\Http\Controllers\JetonEsengoController::class, 'getJetonHistory']);
+        Route::post('/jetons-esengo/use', [\App\Http\Controllers\JetonEsengoController::class, 'useJetonEsengo']);
+        Route::get('/jetons-esengo/tickets', [\App\Http\Controllers\JetonEsengoController::class, 'getTicketsGagnants']);
+        Route::get('/jetons-esengo/tickets/{id}', [\App\Http\Controllers\JetonEsengoController::class, 'getTicketDetails']);
+        Route::post('/jetons-esengo/tickets/{id}/consommer', [\App\Http\Controllers\JetonEsengoController::class, 'consommerTicket']);
+        Route::get('/jetons-esengo/packs/{packId}/cadeaux', [\App\Http\Controllers\JetonEsengoController::class, 'getCadeauxByPack']);
     });
 
     // Routes pour la gestion des pages et publications et files d'actualités
@@ -505,6 +515,21 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // Routes pour la gestion des taux de change
     Route::get('/exchange-rates', [App\Http\Controllers\Admin\ExchangeRatesController::class, 'index']);
     Route::post('/exchange-rates/update', [App\Http\Controllers\Admin\ExchangeRatesController::class, 'update']);
+    
+    // Routes pour la gestion des tickets gagnants
+    Route::get('/tickets/{code}', [\App\Http\Controllers\JetonEsengoController::class, 'verifierTicket']);
+    Route::post('/tickets/{id}/consommer', [\App\Http\Controllers\JetonEsengoController::class, 'consommerTicket']);
+
+    // Routes pour la gestion des cadeaux (jetons Esengo)
+    Route::prefix('/cadeaux')->group(function () {
+        Route::get('/', [\App\Http\Controllers\JetonEsengoController::class, 'getCadeaux']);
+        Route::post('/', [\App\Http\Controllers\JetonEsengoController::class, 'saveCadeau']);
+        Route::put('/{id}', [\App\Http\Controllers\JetonEsengoController::class, 'saveCadeau']);
+        Route::delete('/{id}', [\App\Http\Controllers\JetonEsengoController::class, 'deleteCadeau']);
+    });
+    
+    // Route pour l'upload d'images des cadeaux
+    Route::post('/upload-image', [\App\Http\Controllers\JetonEsengoController::class, 'uploadImage']);
 
     // Routes pour la gestion des paramètres système
     Route::get('/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'index']);

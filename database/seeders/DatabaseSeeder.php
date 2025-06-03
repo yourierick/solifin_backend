@@ -19,5 +19,6 @@ class DatabaseSeeder extends Seeder
         $this->call(PublicationSeeder::class);
         $this->call(BonusPointsSeeder::class);
         $this->call(FaqSeeder::class);
+        $this->call(JetonEsengoSeeder::class); // Seeder pour les jetons Esengo
     }
 }

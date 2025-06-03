@@ -16,10 +16,13 @@ class CreateBonusRatesTable extends Migration
         Schema::create('bonus_rates', function (Blueprint $table) {
             $table->id();
             $table->foreignId('pack_id')->constrained()->onDelete('cascade');
-            $table->enum('frequence', ['daily', 'weekly', 'monthly', 'yearly'])->default('weekly');
+            $table->enum('frequence', ['weekly', 'monthly'])->default('weekly');
             $table->integer('nombre_filleuls')->comment('Nombre de filleuls pour obtenir 1 point (seuil)');
             $table->integer('points_attribues')->default(1)->comment('Nombre de points attribués par palier');
-            $table->decimal('valeur_point', 10, 2)->comment('Valeur d\'un point en devise');
+            $table->decimal('valeur_point', 10, 2)->nullable()->comment('Valeur d\'un point en devise');
+            $table->enum('type', [BonusRates::TYPE_DELAIS, BonusRates::TYPE_ESENGO])
+                  ->default(BonusRates::TYPE_DELAIS)
+                  ->comment('Type de bonus: delais (hebdomadaire) ou esengo (mensuel)');
             $table->timestamps();
         });
 

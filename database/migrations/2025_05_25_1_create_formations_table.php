@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('formations', function (Blueprint $table) {
             $table->id();
             $table->string('title');
+            $table->string('category');
             $table->text('description');
             $table->text('thumbnail')->nullable(); // URL de l'image de couverture
             $table->enum('status', ['draft', 'pending', 'published', 'rejected'])->default('draft');

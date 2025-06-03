@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\Models\BonusRates;
+use App\Models\Cadeau;
 use App\Models\User;
 use App\Models\UserBonusPoint;
 use App\Models\UserBonusPointHistory;
+use App\Models\UserJetonEsengo;
+use App\Models\UserJetonEsengoHistory;
 use App\Models\Pack;
 use App\Models\UserPack;
 use App\Models\Wallet;
@@ -20,52 +23,12 @@ use Illuminate\Support\Facades\Log;
  */
 class BonusPointsService
 {
-    /**
-     * Traite l'attribution des points bonus pour tous les utilisateurs
-     * Cette méthode peut être appelée par une tâche planifiée ou manuellement
-     * 
-     * @param string|null $frequency Fréquence spécifique à traiter (daily, weekly, monthly, yearly) ou null pour toutes
-     * @return array Statistiques sur les points attribués
-     */
-    public function processAllBonusPoints($frequency = null)
-    {
-        $stats = [
-            'users_processed' => 0,
-            'points_attributed' => 0,
-            'errors' => 0
-        ];
-        
-        try {
-            // Si une fréquence spécifique est demandée, traiter uniquement celle-ci
-            if ($frequency) {
-                return $this->processBonusPointsByFrequency($frequency);
-            }
-            
-            // Sinon, traiter toutes les fréquences
-            $frequencies = ['daily', 'weekly', 'monthly', 'yearly'];
-            foreach ($frequencies as $freq) {
-                $result = $this->processBonusPointsByFrequency($freq);
-                $stats['users_processed'] += $result['users_processed'];
-                $stats['points_attributed'] += $result['points_attributed'];
-                $stats['errors'] += $result['errors'];
-            }
-            
-            return $stats;
-        } catch (\Exception $e) {
-            Log::error("Erreur lors du traitement des points bonus: " . $e->getMessage());
-            return [
-                'users_processed' => 0,
-                'points_attributed' => 0,
-                'errors' => 1,
-                'error_message' => $e->getMessage()
-            ];
-        }
-    }
+
     
     /**
      * Traite l'attribution des points bonus pour une fréquence spécifique
      * Pour chaque utilisateur avec des packs actifs, calcule et attribue les points bonus
-     * en fonction du nombre de filleuls parrainés durant la période
+     * en fonction du nombre de filleuls parrainés durant la période et du type de bonus
      * 
      * @param string $frequency Fréquence à traiter (daily, weekly, monthly, yearly)
      * @return array Statistiques sur les points attribués
@@ -111,8 +74,21 @@ class BonusPointsService
                             continue;
                         }
                         
-                        // Trouver le taux de bonus applicable pour ce pack et cette fréquence
-                        $bonusRate = $this->findBonusRateForPack($pack->id, $frequency);
+                        // Déterminer le type de bonus à traiter selon la fréquence
+                        $bonusType = null;
+                        if ($frequency === 'weekly') {
+                            $bonusType = BonusRates::TYPE_DELAIS; // Bonus sur délais (hebdomadaire)
+                        } elseif ($frequency === 'monthly') {
+                            $bonusType = BonusRates::TYPE_ESENGO; // Jeton Esengo (mensuel)
+                        }
+                        
+                        // Si aucun type de bonus ne correspond à cette fréquence, passer au suivant
+                        if (!$bonusType) {
+                            continue;
+                        }
+                        
+                        // Trouver le taux de bonus applicable pour ce pack, cette fréquence et ce type
+                        $bonusRate = $this->findBonusRateForPack($pack->id, $frequency, $bonusType);
                         
                         if ($bonusRate && $bonusRate->nombre_filleuls > 0) {
                             // Calculer les points à attribuer (multiple du seuil)
@@ -122,28 +98,13 @@ class BonusPointsService
                             }
                             
                             if ($pointsToAward > 0) {
-                                // Attribuer les points
-                                $userPoints = UserBonusPoint::getOrCreate($user->id, $userPack->pack_id);
-                                $description = $this->getDescriptionForFrequency($frequency, $filleulsCount);
-                                
-                                $metadata = [
-                                    'frequency' => $frequency,
-                                    'filleuls_count' => $filleulsCount,
-                                    'pack_id' => $pack->id,
-                                    'pack_name' => $pack->name,
-                                    'points_per_threshold' => $bonusRate->points_attribues,
-                                    'threshold' => $bonusRate->nombre_filleuls
-                                ];
-                                
-                                $pointsAdded = $userPoints->addPoints(
-                                    $pointsToAward,
-                                    $pack->id,
-                                    $description,
-                                    $metadata
-                                );
-                                
-                                if ($pointsAdded) {
-                                    $stats['points_attributed'] += $pointsToAward;
+                                // Traitement différent selon le type de bonus
+                                if ($bonusType === BonusRates::TYPE_DELAIS) {
+                                    // Bonus sur délais (points standard)
+                                    $this->processBonusSurDelais($user, $userPack, $pack, $bonusRate, $pointsToAward, $filleulsCount, $frequency, $stats);
+                                } else if ($bonusType === BonusRates::TYPE_ESENGO) {
+                                    // Jetons Esengo (codes uniques)
+                                    $this->processJetonEsengo($user, $userPack, $pack, $bonusRate, $pointsToAward, $filleulsCount, $frequency, $stats);
                                 }
                             }
                         }
@@ -269,13 +230,19 @@ class BonusPointsService
      * 
      * @param int $packId ID du pack
      * @param string $frequency Fréquence (daily, weekly, monthly, yearly)
+     * @param string|null $type Type de bonus (delais ou esengo)
      * @return BonusRates|null Taux de bonus ou null si aucun n'est configuré
      */
-    private function findBonusRateForPack($packId, $frequency)
+    private function findBonusRateForPack($packId, $frequency, $type = null)
     {
-        return BonusRates::where('pack_id', $packId)
-            ->where('frequence', $frequency)
-            ->first();
+        $query = BonusRates::where('pack_id', $packId)
+            ->where('frequence', $frequency);
+            
+        if ($type) {
+            $query->where('type', $type);
+        }
+        
+        return $query->first();
     }
     
     /**
@@ -368,13 +335,338 @@ class BonusPointsService
     }
     
     /**
-     * Méthode de compatibilité pour l'ancienne implémentation
-     * Permet de maintenir la compatibilité avec le code existant
+     * Traite l'attribution des points bonus sur délais (hebdomadaire)
      * 
-     * @return array Statistiques sur les points attribués
+     * @param User $user Utilisateur concerné
+     * @param UserPack $userPack Pack de l'utilisateur
+     * @param Pack $pack Pack concerné
+     * @param BonusRates $bonusRate Taux de bonus applicable
+     * @param int $pointsToAward Nombre de points à attribuer
+     * @param int $filleulsCount Nombre de filleuls parrainés
+     * @param string $frequency Fréquence du bonus
+     * @param array &$stats Statistiques à mettre à jour
+     * @return void
      */
-    public function processWeeklyBonusPoints()
+    private function processBonusSurDelais($user, $userPack, $pack, $bonusRate, $pointsToAward, $filleulsCount, $frequency, &$stats)
     {
-        return $this->processBonusPointsByFrequency('weekly');
+        // Attribuer les points
+        $userPoints = UserBonusPoint::getOrCreate($user->id, $userPack->pack_id);
+        $description = $this->getDescriptionForFrequency($frequency, $filleulsCount);
+        
+        $metadata = [
+            'frequency' => $frequency,
+            'filleuls_count' => $filleulsCount,
+            'pack_id' => $pack->id,
+            'pack_name' => $pack->name,
+            'points_per_threshold' => $bonusRate->points_attribues,
+            'threshold' => $bonusRate->nombre_filleuls,
+            'type' => BonusRates::TYPE_DELAIS
+        ];
+        
+        $pointsAdded = $userPoints->addPoints(
+            $pointsToAward,
+            $pack->id,
+            $description,
+            $metadata
+        );
+        
+        if ($pointsAdded) {
+            $stats['points_attributed'] += $pointsToAward;
+            
+            // Envoyer une notification à l'utilisateur
+            $this->sendBonusNotification(
+                $user,
+                $pointsToAward,
+                BonusRates::TYPE_DELAIS,
+                $filleulsCount
+            );
+        }
     }
+    
+    /**
+     * Traite l'attribution des jetons Esengo (mensuel)
+     * Génère des codes uniques pour chaque jeton attribué
+     * 
+     * @param User $user Utilisateur concerné
+     * @param UserPack $userPack Pack de l'utilisateur
+     * @param Pack $pack Pack concerné
+     * @param BonusRates $bonusRate Taux de bonus applicable
+     * @param int $pointsToAward Nombre de jetons à attribuer
+     * @param int $filleulsCount Nombre de filleuls parrainés
+     * @param string $frequency Fréquence du bonus
+     * @param array &$stats Statistiques à mettre à jour
+     * @return void
+     */
+    private function processJetonEsengo($user, $userPack, $pack, $bonusRate, $pointsToAward, $filleulsCount, $frequency, &$stats)
+    {
+        // Attribuer les jetons Esengo
+        $description = "Jetons Esengo pour $filleulsCount filleuls parrainés ce mois";
+        
+        // Métadonnées communes pour tous les jetons
+        $commonMetadata = [
+            'frequency' => $frequency,
+            'filleuls_count' => $filleulsCount,
+            'pack_id' => $pack->id,
+            'pack_name' => $pack->name,
+            'points_per_threshold' => $bonusRate->points_attribues,
+            'threshold' => $bonusRate->nombre_filleuls,
+            'type' => BonusRates::TYPE_ESENGO,
+        ];
+        
+        // Date d'expiration des jetons (3 mois à partir de maintenant)
+        $expirationDate = Carbon::now()->addMonths(3);
+        
+        // Créer les jetons Esengo pour l'utilisateur
+        $jetonsCreated = 0;
+        
+        for ($i = 0; $i < $pointsToAward; $i++) {
+            // Générer un code unique pour le jeton
+            $codeUnique = UserJetonEsengo::generateUniqueCode($user->id);
+            
+            // Créer le jeton dans la base de données
+            $jeton = UserJetonEsengo::create([
+                'user_id' => $user->id,
+                'pack_id' => $pack->id,
+                'code_unique' => $codeUnique,
+                'is_used' => false,
+                'date_expiration' => $expirationDate,
+                'metadata' => $commonMetadata,
+            ]);
+            
+            // Enregistrer l'attribution dans l'historique
+            UserJetonEsengoHistory::logAttribution(
+                $jeton,
+                $description,
+                $commonMetadata
+            );
+            
+            $jetonsCreated++;
+        }
+        
+        if ($jetonsCreated > 0) {
+            $stats['points_attributed'] += $jetonsCreated;
+            
+            // Envoyer une notification à l'utilisateur
+            $this->sendBonusNotification(
+                $user,
+                $pointsToAward,
+                BonusRates::TYPE_ESENGO,
+                $filleulsCount
+            );
+        }
+    }
+    
+    // La méthode generateUniqueJetonCode a été remplacée par UserJetonEsengo::generateUniqueCode
+    
+    /**
+     * Utilise un jeton Esengo pour générer un ticket gagnant
+     * 
+     * @param int $userId ID de l'utilisateur
+     * @param string $jetonCode Code du jeton à utiliser
+     * @return array Résultat de l'opération avec le cadeau gagné
+     */
+    public function useJetonEsengo($userId, $jetonCode)
+    {
+        try {
+            // Vérifier que l'utilisateur existe
+            $user = User::findOrFail($userId);
+            
+            // Vérifier que le jeton existe et qu'il appartient à l'utilisateur
+            $jeton = UserJetonEsengo::where('user_id', $userId)
+                ->where('code_unique', $jetonCode)
+                ->where('is_used', false)
+                ->first();
+                
+            if (!$jeton) {
+                return [
+                    'success' => false,
+                    'message' => 'Jeton introuvable ou déjà utilisé'
+                ];
+            }
+            
+            // Vérifier si le jeton est expiré
+            if ($jeton->isExpired()) {
+                // Enregistrer l'expiration dans l'historique
+                UserJetonEsengoHistory::logExpiration(
+                    $jeton,
+                    'Jeton expiré lors d\'une tentative d\'utilisation',
+                    ['Date d\'expiration' => $jeton->date_expiration->format('Y-m-d H:i:s')]
+                );
+                
+                return [
+                    'success' => false,
+                    'message' => 'Ce jeton est expiré'
+                ];
+            }
+            
+            $packId = $jeton->pack_id;
+            
+            // Sélectionner un cadeau aléatoirement en fonction des probabilités
+            $cadeau = $this->selectRandomCadeau($packId);
+            
+            if (!$cadeau) {
+                return [
+                    'success' => false,
+                    'message' => 'Aucun cadeau disponible'
+                ];
+            }
+            
+            // Générer un ticket gagnant
+            $expirationDate = now()->addDays(30); // Expiration dans 30 jours
+            $verificationCode = strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 8));
+            
+            $ticketGagnant = new \App\Models\TicketGagnant([
+                'user_id' => $userId,
+                'cadeau_id' => $cadeau->id,
+                'code_jeton' => $jetonCode,
+                'date_expiration' => $expirationDate,
+                'consomme' => false,
+                'code_verification' => $verificationCode
+            ]);
+            
+            DB::beginTransaction();
+            try {
+                // Sauvegarder le ticket
+                $ticketGagnant->save();
+                
+                // Marquer le jeton comme utilisé
+                $jeton->markAsUsed($cadeau->id);
+                
+                // Enregistrer l'utilisation dans l'historique
+                UserJetonEsengoHistory::logUtilisation(
+                    $jeton,
+                    $cadeau,
+                    'Jeton utilisé pour obtenir le cadeau: ' . $cadeau->nom,
+                    [
+                        'Id ticket gagnant' => $ticketGagnant->id,
+                        'Code de vérification' => $verificationCode,
+                        'Date d\'expiration' => $expirationDate->format('Y-m-d H:i:s')
+                    ]
+                );
+                
+                DB::commit();
+                
+                // Envoyer une notification à l'utilisateur
+                $user->notify(new \App\Notifications\TicketGagnantNotification(
+                    'Félicitations !',
+                    "Vous avez gagné {$cadeau->nom} ! Utilisez votre ticket avant le {$expirationDate->format('d/m/Y')}.",
+                    $cadeau,
+                    $ticketGagnant
+                ));
+                
+                return [
+                    'success' => true,
+                    'ticket' => $ticketGagnant,
+                    'cadeau' => $cadeau
+                ];
+            } catch (\Exception $e) {
+                DB::rollBack();
+                Log::error('Erreur lors de l\'utilisation d\'un jeton Esengo: ' . $e->getMessage());
+                
+                return [
+                    'success' => false,
+                    'message' => 'Une erreur est survenue lors de l\'attribution du cadeau'
+                ];
+            }
+            
+        } catch (\Exception $e) {
+            Log::error("Erreur lors de l'utilisation d'un jeton Esengo: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => "Une erreur est survenue lors de l'utilisation du jeton."
+            ];
+        }
+    }
+    
+    /**
+     * Sélectionne un cadeau aléatoirement en fonction des probabilités
+     * 
+     * @return \App\Models\Cadeau|null Cadeau sélectionné ou null si aucun n'est disponible
+     */
+    private function selectRandomCadeau($packId)
+    {
+        // Récupérer tous les cadeaux actifs avec du stock disponible
+        $cadeaux = \App\Models\Cadeau::where('actif', true)
+            ->where('stock', '>', 0)
+            ->where('pack_id', $packId)
+            ->get();
+            
+        if ($cadeaux->isEmpty()) {
+            return null;
+        }
+        
+        // Calculer la somme totale des probabilités
+        $totalProbability = $cadeaux->sum('probabilite');
+        
+        if ($totalProbability <= 0) {
+            // Si la somme est nulle ou négative, sélectionner un cadeau au hasard avec une probabilité égale
+            return $cadeaux->random();
+        }
+        
+        // Générer un nombre aléatoire entre 0 et la somme totale des probabilités
+        $randomValue = mt_rand(0, $totalProbability * 100) / 100;
+        
+        // Sélectionner un cadeau en fonction de sa probabilité
+        $cumulativeProbability = 0;
+        
+        foreach ($cadeaux as $cadeau) {
+            $cumulativeProbability += $cadeau->probabilite;
+            
+            if ($randomValue <= $cumulativeProbability) {
+                // Décrémenter le stock du cadeau
+                $cadeau->stock -= 1;
+                $cadeau->save();
+                
+                return $cadeau;
+            }
+        }
+        
+        // Si aucun cadeau n'a été sélectionné (ne devrait pas arriver), retourner le premier
+        $firstCadeau = $cadeaux->first();
+        $firstCadeau->stock -= 1;
+        $firstCadeau->save();
+        
+        return $firstCadeau;
+    }
+    
+    // La méthode markJetonAsUsed a été remplacée par la méthode markAsUsed du modèle UserJetonEsengo
+    
+    /**
+     * Envoie une notification à l'utilisateur pour l'informer de l'attribution de bonus
+     * 
+     * @param User $user Utilisateur à notifier
+     * @param int $points Nombre de points/jetons attribués
+     * @param string $type Type de bonus (delais ou esengo)
+     * @param int $filleulsCount Nombre de filleuls parrainés
+     * @return void
+     */
+    private function sendBonusNotification($user, $points, $type, $filleulsCount)
+    {
+        try {
+            $message = '';
+            $title = '';
+            
+            if ($type === BonusRates::TYPE_DELAIS) {
+                $title = 'Bonus sur délais attribué';
+                $message = "Grâce à vos parrainages cette semaine, vous avez gagné $points points bonus.";
+            } else if ($type === BonusRates::TYPE_ESENGO) {
+                $title = 'Jetons Esengo attribués';
+                $message = "Grâce à vos parrainages au courant de ce mois, vous avez gagné $points jetons bonus.";
+            }
+            
+            // Créer une notification dans la base de données
+            $user->notify(new \App\Notifications\BonusPointsNotification(
+                $title,
+                $message,
+                $points,
+                $type
+            ));
+            
+            // La notification toast sera gérée par le frontend lors de la connexion de l'utilisateur
+        } catch (\Exception $e) {
+            Log::error("Erreur lors de l'envoi de la notification de bonus: " . $e->getMessage());
+        }
+    }
+    
+
 }

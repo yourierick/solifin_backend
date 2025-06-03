@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
+
 #[\Illuminate\Routing\Middleware\Authenticate]
 #[\App\Http\Middleware\AdminMiddleware]
 class PackController extends Controller
@@ -273,44 +274,96 @@ class PackController extends Controller
     }
 
     public function storeBonusRate(Request $request, $packId)
-    {
-        $request->validate([
-            'frequence' => 'required|in:daily,weekly,monthly,yearly',
-            'nombre_filleuls' => 'required|integer|min:1',
-            'points_attribues' => 'required|integer|min:1',
-            'valeur_point' => 'required|numeric|min:0.01',
-        ]);
+    {   
+        try {
+            $validator = Validator::make($request->all(), [
+                'type' => 'required|in:delais,esengo',
+                'nombre_filleuls' => 'required|integer|min:1',
+                'points_attribues' => 'required|integer|min:1',
+                'valeur_point' => 'required_if:type,delais|numeric|min:0.01',
+            ]);
 
-        $pack = Pack::findOrFail($packId);
-        
-        $bonusRate = BonusRates::create([
-            'pack_id' => $packId,
-            'frequence' => $request->frequence,
-            'nombre_filleuls' => $request->nombre_filleuls,
-            'points_attribues' => $request->points_attribues,
-            'valeur_point' => $request->valeur_point,
-        ]);
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Taux de bonus ajouté avec succès',
-            'bonusRate' => $bonusRate
-        ]);
+            $pack = Pack::findOrFail($packId);
+            
+            // Vérifier si une configuration du même type existe déjà pour ce pack
+            $existingBonus = BonusRates::where('pack_id', $packId)
+                ->where('type', $request->type)
+                ->first();
+                
+            if ($existingBonus) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $request->type === 'delais' 
+                        ? 'Un bonus sur délais a déjà été configuré pour ce pack' 
+                        : 'Une configuration de jetons Esengo existe déjà pour ce pack'
+                ], 422);
+            }
+            
+            DB::beginTransaction();
+
+            $bonusRate = BonusRates::create([
+                'pack_id' => $packId,
+                'type' => $request->type,
+                'frequence' => $request->type === "delais" ? "weekly" : "monthly",
+                'nombre_filleuls' => $request->nombre_filleuls,
+                'points_attribues' => $request->points_attribues,
+                'valeur_point' => $request->valeur_point,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Taux de bonus ajouté avec succès',
+                'bonusRate' => $bonusRate
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue lors de la création du bonus rate'
+            ], 500);
+        } 
     }
 
     public function updateBonusRate(Request $request, $id)
     {
-        $request->validate([
-            'frequence' => 'required|in:daily,weekly,monthly,yearly',
+        $validator = Validator::make($request->all(), [
+            'type' => 'required|in:delais,esengo',
             'nombre_filleuls' => 'required|integer|min:1',
             'points_attribues' => 'required|integer|min:1',
-            'valeur_point' => 'required|numeric|min:0.01',
+            'valeur_point' => 'required_if:type,delais|numeric|min:0.01',
         ]);
 
         $bonusRate = BonusRates::findOrFail($id);
+        $originalType = $bonusRate->type;
+        
+        // Si le type a changé, vérifier qu'il n'existe pas déjà une configuration du nouveau type
+        if ($originalType !== $request->type) {
+            $existingBonus = BonusRates::where('pack_id', $bonusRate->pack_id)
+                ->where('type', $request->type)
+                ->first();
+                
+            if ($existingBonus) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $request->type === 'delais' 
+                        ? 'Un bonus sur délais a déjà été configuré pour ce pack' 
+                        : 'Une configuration de jetons Esengo existe déjà pour ce pack'
+                ], 422);
+            }
+        }
         
         $bonusRate->update([
-            'frequence' => $request->frequence,
+            'type'   => $request->type,
+            'frequence' => $request->type === "delais" ? "weekly" : "monthly",
             'nombre_filleuls' => $request->nombre_filleuls,
             'points_attribues' => $request->points_attribues,
             'valeur_point' => $request->valeur_point,
