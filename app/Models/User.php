@@ -12,6 +12,8 @@ use App\Traits\HandleProfilePicture;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use App\Notifications\VerifyEmailFrench;
+use App\Models\Role;
+use App\Models\Permission;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -40,6 +42,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'status',
         'pack_de_publication_id',
         'is_admin',
+        'role_id',
         'email_verified_at',
         'acquisition_source', // Comment l'utilisateur a connu SOLIFIN
     ];
@@ -81,7 +84,91 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function getRoleAttribute()
     {
+        if ($this->role_id) {
+            return $this->roleRelation->slug;
+        }
+        
+        // Compatibilité avec l'ancien système
         return $this->is_admin ? 'admin' : 'user';
+    }
+    
+    /**
+     * Relation avec le rôle de l'utilisateur.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
+     */
+    public function roleRelation()
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
+    
+    /**
+     * Vérifie si l'utilisateur a une permission spécifique.
+     *
+     * @param string $permission
+     * @return bool
+     */
+    public function hasPermission($permission)
+    {
+        // Si l'utilisateur n'a pas de rôle assigné mais est admin
+        if (!$this->role_id && $this->is_admin) {
+            return true; // Les anciens admins ont toutes les permissions
+        }
+        
+        // Vérifier les permissions via le rôle
+        return $this->role_id && $this->roleRelation->hasPermission($permission);
+    }
+    
+    /**
+     * Vérifie si l'utilisateur a un rôle spécifique.
+     *
+     * @param string $role
+     * @return bool
+     */
+    public function hasRole($role)
+    {
+        // Compatibilité avec l'ancien système
+        if (!$this->role_id) {
+            if ($role === 'admin' && $this->is_admin) {
+                return true;
+            }
+            if ($role === 'user' && !$this->is_admin) {
+                return true;
+            }
+            return false;
+        }
+        
+        return $this->roleRelation->slug === $role;
+    }
+    
+    /**
+     * Vérifie si l'utilisateur est un gestionnaire.
+     *
+     * @return bool
+     */
+    public function isGestionnaire()
+    {
+        return $this->hasRole('gestionnaire');
+    }
+    
+    /**
+     * Vérifie si l'utilisateur est un administrateur.
+     *
+     * @return bool
+     */
+    public function isAdmin()
+    {
+        return $this->is_admin || $this->hasRole('admin') || $this->hasRole('super-admin');
+    }
+    
+    /**
+     * Vérifie si l'utilisateur est un super administrateur.
+     *
+     * @return bool
+     */
+    public function isSuperAdmin()
+    {
+        return $this->hasRole('super-admin');
     }
 
     // Relation avec les packs achetés

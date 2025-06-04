@@ -24,6 +24,7 @@ use App\Notifications\VerifyEmailWithCredentials;
 use App\Notifications\ReferralInvitationConverted;
 use Carbon\Carbon;
 use App\Models\Setting;
+use App\Models\Role;
 
 
 class RegisterController extends Controller
@@ -173,7 +174,11 @@ class RegisterController extends Controller
                 'pack_de_publication_id' => $pack->id,
             ]);
 
-            $user->account_id = '00-CPT-'.$user->id;
+            do {
+                $account_id = 'USR-' . rand(1, 100) . "-" . Str::random(4);
+            } while (User::where('account_id', $account_id)->exists());
+
+            $user->account_id = $account_id;
             $user->update();
 
             // Traiter le code de parrainage

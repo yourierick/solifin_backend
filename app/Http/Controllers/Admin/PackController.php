@@ -65,9 +65,12 @@ class PackController extends Controller
                 'abonnement' => $validated['abonnement'],
             ]);
 
-            //Attribuer automatiquement le pack aux administrateurs
-            $admins = User::where('is_admin', true)->get();
-            foreach ($admins as $admin) {
+            //Attribuer automatiquement le pack aux super-administrateurs
+            $superAdmins = User::whereHas('roleRelation', function ($query) {
+                $query->where('nom', '=', 'super-admin');
+            })->get();
+            
+            foreach ($superAdmins as $admin) {
                 $referralLetter = substr($pack->name, 0, 1);
                 $referralNumber = str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
                 $referralCode = 'SPR' . $referralLetter . $referralNumber;

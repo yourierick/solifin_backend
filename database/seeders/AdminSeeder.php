@@ -9,6 +9,7 @@ use App\Models\Pack;
 use App\Models\UserPack;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class AdminSeeder extends Seeder
 {
@@ -17,7 +18,6 @@ class AdminSeeder extends Seeder
         // Créer l'administrateur
         $admin = User::create([
             'name' => 'Mukuta Bitangalo Erick',
-            'account_id' => '00-CPT-01',
             'sexe' => 'homme',
             'pays' => 'CD',
             'province' => 'SudKivu',
@@ -27,9 +27,17 @@ class AdminSeeder extends Seeder
             'email' => 'admin@solifin.com',
             'password' => Hash::make('admin123'),
             'is_admin' => true,
+            'role_id' => 1,
             'email_verified_at' => now(),
             'phone' => '+243813728334',
         ]);
+
+        do {
+            $account_id = 'ADM-' . rand(1, 100) . "-" . Str::random(4);
+        } while (User::where('account_id', $account_id)->exists());
+
+        $admin->account_id = $account_id;
+        $admin->save();
 
         // Créer le wallet pour l'administrateur
         Wallet::create([
@@ -74,11 +82,5 @@ class AdminSeeder extends Seeder
                 ]);
             }
         });
-
-        // WalletSystem::create([
-        //     'balance' => 0,
-        //     'total_in' => 0,
-        //     'total_out' => 0,
-        // ]);
     }
 }

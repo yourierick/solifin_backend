@@ -23,6 +23,111 @@ class WithdrawalController extends Controller
     {
         // Constructeur simplifié - Service Vonage supprimé
     }
+    
+    /**
+     * Récupère toutes les demandes de retrait (traitées ou non)
+     * 
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function index(Request $request)
+    {
+        try {
+            // Récupérer les paramètres de filtrage
+            $status = $request->query('status');
+            $paymentMethod = $request->query('payment_method');
+            $startDate = $request->query('start_date');
+            $endDate = $request->query('end_date');
+            $search = $request->query('search');
+            
+            // Construire la requête de base
+            $query = WithdrawalRequest::with(['user', 'processor'])
+                ->orderBy('created_at', 'desc');
+            
+            // Appliquer les filtres si présents
+            if ($status) {
+                $query->where('status', $status);
+            }
+            
+            if ($paymentMethod) {
+                $query->where('payment_method', $paymentMethod);
+            }
+            
+            if ($startDate) {
+                $query->whereDate('created_at', '>=', $startDate);
+            }
+            
+            if ($endDate) {
+                $query->whereDate('created_at', '<=', $endDate);
+            }
+            
+            if ($search) {
+                $query->whereHas('user', function($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%");
+                });
+            }
+            
+            // Récupérer les demandes paginées
+            $withdrawalRequests = $query->paginate(15);
+            
+            // Calculer les statistiques
+            $totalRequests = WithdrawalRequest::count();
+            $pendingRequests = WithdrawalRequest::where('status', 'pending')->count();
+            $approvedRequests = WithdrawalRequest::where('status', 'approved')->count();
+            $rejectedRequests = WithdrawalRequest::where('status', 'rejected')->count();
+            $cancelledRequests = WithdrawalRequest::where('status', 'cancelled')->count();
+            
+            $totalAmount = WithdrawalRequest::sum('amount');
+            $pendingAmount = WithdrawalRequest::where('status', 'pending')->sum('amount');
+            $approvedAmount = WithdrawalRequest::where('status', 'approved')->sum('amount');
+            $rejectedAmount = WithdrawalRequest::where('status', 'rejected')->sum('amount');
+            $paidAmount = $approvedAmount;
+            
+            // Statistiques par méthode de paiement
+            $paymentMethodStats = WithdrawalRequest::select('payment_method', DB::raw('count(*) as count'), DB::raw('sum(amount) as total_amount'))
+                ->groupBy('payment_method')
+                ->get();
+            
+            // Statistiques par mois (12 derniers mois)
+            $monthlyStats = WithdrawalRequest::select(
+                    DB::raw('YEAR(created_at) as year'),
+                    DB::raw('MONTH(created_at) as month'),
+                    DB::raw('count(*) as count'),
+                    DB::raw('sum(amount) as total_amount')
+                )
+                ->where('created_at', '>=', now()->subMonths(12))
+                ->groupBy('year', 'month')
+                ->orderBy('year', 'asc')
+                ->orderBy('month', 'asc')
+                ->get();
+                
+            return response()->json([
+                'success' => true,
+                'withdrawal_requests' => $withdrawalRequests,
+                'stats' => [
+                    'total_requests' => $totalRequests,
+                    'pending_requests' => $pendingRequests,
+                    'approved_requests' => $approvedRequests,
+                    'rejected_requests' => $rejectedRequests,
+                    'cancelled_requests' => $cancelledRequests,
+                    'total_amount' => $totalAmount,
+                    'pending_amount' => $pendingAmount,
+                    'approved_amount' => $approvedAmount,
+                    'rejected_amount' => $rejectedAmount,
+                    'paid_amount' => $paidAmount,
+                    'payment_method_stats' => $paymentMethodStats,
+                    'monthly_stats' => $monthlyStats
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des demandes de retrait: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue lors de la récupération des demandes de retrait',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 
     protected function formatPhoneNumber($phone)
     {

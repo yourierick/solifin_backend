@@ -17,6 +17,10 @@ use App\Models\UserPack;
 use App\Models\UserBonusPoint;
 use App\Models\BonusRates;
 use App\Models\Commission;
+use App\Models\Role;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
+
 
 class UserController extends BaseController
 {
@@ -33,6 +37,7 @@ class UserController extends BaseController
         try {
             $query = User::query()
                 ->select('users.*') // Sélectionner explicitement les colonnes de la table users
+                ->where('is_admin', false)
                 ->withCount('referrals')
                 ->with(['packs' => function ($query) {
                     $query->select('user_packs.id', 'user_packs.user_id', 'user_packs.pack_id');
@@ -936,6 +941,255 @@ class UserController extends BaseController
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors du changement de statut du pack: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Fonctions pour les administrateurs
+     
+     * Créer un nouvel administrateur avec un rôle spécifique
+     * Cette méthode est réservée aux super administrateurs
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function createAdmin(Request $request)
+    {
+        try {
+            // Valider les données
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:users',
+                'password' => 'required|string|min:8',
+                'phone' => 'required|string',
+                'address' => 'required|string',
+                'pays' => 'required|string',
+                'province' => 'required|string',
+                'ville' => 'required|string',
+                'sexe' => 'required|string',
+            ]);
+            
+            DB::beginTransaction();
+
+            $role = Role::where('slug', 'gestionnaire')->first();
+            
+            // Créer l'utilisateur administrateur
+            $admin = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'phone' => $validated['phone'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'pays' => $validated['pays'] ?? null,
+                'province' => $validated['province'] ?? null,
+                'ville' => $validated['ville'] ?? null,
+                'sexe' => $validated['sexe'] === "masculin" ? "homme" : "femme",
+                'status' => 'active',
+                'is_admin' => true,
+                'role_id' => $role->id,
+            ]);
+
+            $users = User::all();
+
+            do {
+                $account_id = 'ADM-' . rand(1, 100) . "-" . Str::random(4);
+            } while ($users->contains('account_id', $account_id));
+            
+            $admin->account_id = $account_id;
+            $admin->save();
+
+            DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Administrateur créé avec succès',
+                'admin' => [
+                    'id' => $admin->id,
+                    'name' => $admin->name,
+                    'email' => $admin->email,
+                    'role' => $role->nom,
+                    'permissions' => $role->permissions->pluck('nom'),
+                ]
+            ], 201);
+            
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de la création de l\'administrateur: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création de l\'administrateur',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getAdmin($id)
+    {
+        try {
+            $admin = User::with('roleRelation')->findOrFail($id);
+            return response()->json([
+                'success' => true,
+                'data' => $admin
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Administrateur non trouvé'
+            ], 404);
+        }
+    }
+
+    public function updateAdmin(Request $request, $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+            
+            // Valider les données
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+                'password' => 'nullable|string|min:8|confirmed',
+                'phone' => 'nullable|string',
+                'address' => 'nullable|string',
+                'pays' => 'nullable|string',
+                'province' => 'nullable|string',
+                'ville' => 'nullable|string',
+                'sexe' => 'nullable|string',
+            ]);
+            
+            DB::beginTransaction();
+            
+            // Mettre à jour l'utilisateur
+            $user->fill($validated);
+            
+            // Mettre à jour le mot de passe si fourni
+            if (!empty($validated['password'])) {
+                $user->password = Hash::make($validated['password']);
+            }
+            
+            $user->save();
+            
+            DB::commit();
+
+            // Récupérer le rôle pour l'inclure dans la réponse
+            $role = Role::where("slug", "gestionnaire")->first();    
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Administrateur mis à jour avec succès',
+                'admin' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $role->nom,
+                    'permissions' => $role->permissions->pluck('nom'),
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de la mise à jour de l\'administrateur : ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour de l\'administrateur',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function deleteAdmin($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            $superAdmins = User::whereHas('roleRelation', function ($query) {
+                $query->where('nom', '=', 'super-admin');
+            })->get();
+            
+            if ($superAdmins->count() === 1 && $superAdmins->first()->id === $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de supprimer le dernier super-admin'
+                ], 422);
+            }
+
+            // Supprimer la picture de l'utilisateur
+            if ($user->picture && Storage::disk('public')->exists($user->picture)) {
+                Storage::disk('public')->delete($user->picture);
+            }
+            
+            // Supprimer l'utilisateur
+            $user->delete();  
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Administrateur supprimé avec succès'
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression de l\'administrateur',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getAdmins()
+    {
+        try {
+            // Récupérer tous les administrateurs
+            $admins = User::with('roleRelation')->where('is_admin', true)->where('role_id', Role::where("slug", "gestionnaire")->first()->id)->get();
+
+            foreach ($admins as $admin) {
+                $admin->picture = $admin->picture ? asset('storage/' . $admin->picture) : null;
+            }
+            
+            return response()->json([
+                'success' => true,
+                'admins' => $admins
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des administrateurs',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function toggleAdminStatus($userId)
+    {
+        try {
+            $user = User::find($userId);
+            
+            // Empêcher la désactivation du dernier administrateur
+            if ($user->is_admin && User::where('is_admin', true)->count() == 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de désactiver le dernier administrateur'
+                ], 422);
+            }
+
+            // Toggle le statut
+            $user->status = $user->status === 'active' ? 'inactive' : 'active';
+            $user->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Statut de l\'administrateur mis à jour avec succès',
+                'data' => $user
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur dans UserController@toggleAdminStatus: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue lors de la mise à jour du statut'
             ], 500);
         }
     }

@@ -91,6 +91,9 @@ Route::get('/admin-packs', [\App\Http\Controllers\Admin\PackController::class, '
 
 // Routes protégées
 Route::middleware('auth:sanctum')->group(function () {
+    // Route pour récupérer les permissions de l'utilisateur connecté
+    Route::get('/user/permissions', [\App\Http\Controllers\PermissionController::class, 'getUserPermissions']);
+    
     // Route pour vérifier l'authentification
     Route::get('/user', function (Request $request) {
         $user = $request->user();
@@ -386,7 +389,7 @@ Route::middleware('auth:sanctum')->group(function () {
 // Routes admin
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
     // Routes pour la modération des témoignages
-    Route::prefix('testimonials')->group(function () {
+    Route::prefix('testimonials')->middleware('permission:manage-testimonials')->group(function () {
         // Récupérer tous les témoignages avec pagination et filtres
         Route::get('/', [\App\Http\Controllers\Admin\TestimonialController::class, 'index']);
         
@@ -411,90 +414,110 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
         // Supprimer un témoignage
         Route::delete('/{id}', [\App\Http\Controllers\Admin\TestimonialController::class, 'destroy']);
     });
-    
-    // Routes pour la gestion des frais de transaction
-    Route::get('/transaction-fees', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'index']);
-    Route::post('/transaction-fees', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'store']);
-    Route::get('/transaction-fees/{id}', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'show']);
-    Route::put('/transaction-fees/{id}', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'update']);
-    Route::delete('/transaction-fees/{id}', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'destroy']);
-    Route::post('/transaction-fees/{id}/toggle-active', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'toggleActive']);
-    Route::post('/transaction-fees/update-from-api', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'updateFromApi']);
-    
-    // Gestion des packs
-    Route::apiResource('packs', \App\Http\Controllers\Admin\PackController::class);
-    Route::patch('packs/{pack}/toggle-status', [\App\Http\Controllers\Admin\PackController::class, 'toggleStatus']);
-    Route::post('packs/add', [\App\Http\Controllers\Admin\PackController::class, 'store']);
+
+    Route::middleware('permission:manage-packs')->group(function () {
+        // Gestion des packs
+        Route::apiResource('packs', \App\Http\Controllers\Admin\PackController::class);
+        Route::patch('packs/{pack}/toggle-status', [\App\Http\Controllers\Admin\PackController::class, 'toggleStatus']);
+        Route::post('packs/add', [\App\Http\Controllers\Admin\PackController::class, 'store']);
+        
+        // Routes de gestion des commissions des packs
+        Route::get('/packs/{pack}/commission-rates', [PackController::class, 'getCommissionRates']);
+        Route::post('/packs/{pack}/commission-rate', [PackController::class, 'updateCommissionRate']);
+        
+        // Routes de gestion des bonus sur délais
+        Route::get('/packs/{packId}/bonus-rates', [PackController::class, 'getBonusRates']);
+        Route::post('/packs/{packId}/bonus-rates', [PackController::class, 'storeBonusRate']);
+        Route::put('/bonus-rates/{id}', [PackController::class, 'updateBonusRate']);
+        Route::delete('/bonus-rates/{id}', [PackController::class, 'deleteBonusRate']);
+    });
 
     //Routes pour la gestion des utilisateurs
-    Route::get('users', [UserController::class, 'index']);
-    Route::get('users/{user}', [UserController::class, 'show']);
-    Route::patch('users/{user}', [UserController::class, 'update']);
-    Route::delete('users/{user}', [UserController::class, 'destroy']);
-    Route::patch('users/toggle-status/{userId}', [UserController::class, 'toggleStatus']);
-    Route::get('users/{user}/referrals', [UserController::class, 'referrals']);
-    Route::post('/users/{id}/reset-password', [UserController::class, 'resetPassword']);
-    Route::get('/users/{id}/wallet', [UserController::class, 'getWalletData']);
-    Route::get('/users/{id}/packs', [UserController::class, 'getUserPacks']);
-    Route::get('/users/packs/{id}/stats', [UserController::class, 'getDetailedPackStats']);
-    Route::get('/users/packs/{id}/referrals', [UserController::class, 'getPackReferrals']);
-    Route::patch('/users/packs/{id}/toggle-status', [UserController::class, 'togglePackStatus']);
+    Route::middleware('permission:manage-admins')->group(function () {
+        Route::get('admins', [UserController::class, 'getAdmins']);
+        Route::post('/admins/create', [UserController::class, 'createAdmin']);
+        Route::patch('admins/{id}', [UserController::class, 'updateAdmin']);
+        Route::delete('admins/{id}', [UserController::class, 'deleteAdmin']);
+        Route::post('admins/{id}/toggle-status', [UserController::class, 'toggleStatus']);
+        Route::get('admins/{id}', [UserController::class, 'getAdmin']);
+    });
 
+
+    Route::middleware('permission:manage-users')->group(function () {
+        Route::get('users', [UserController::class, 'index']);
+        Route::get('users/{user}', [UserController::class, 'show']);
+        Route::patch('users/{user}', [UserController::class, 'update']);
+        Route::delete('users/{user}', [UserController::class, 'destroy']);
+        Route::patch('users/toggle-status/{userId}', [UserController::class, 'toggleStatus']);
+        Route::get('users/{user}/referrals', [UserController::class, 'referrals']);
+        Route::post('/users/{id}/reset-password', [UserController::class, 'resetPassword']);
+        Route::get('/users/{id}/wallet', [UserController::class, 'getWalletData']);
+        Route::get('/users/{id}/packs', [UserController::class, 'getUserPacks']);
+        Route::get('/users/packs/{id}/stats', [UserController::class, 'getDetailedPackStats']);
+        Route::get('/users/packs/{id}/referrals', [UserController::class, 'getPackReferrals']);
+        Route::patch('/users/packs/{id}/toggle-status', [UserController::class, 'togglePackStatus']);
+    });
+    
     // Routes pour la gestion des retraits (admin)
-    Route::get('/withdrawal/requests', [WithdrawalController::class, 'getRequests']);
-    Route::post('/withdrawal/requests/{id}/approve', [WithdrawalController::class, 'approve']);
-    Route::post('/withdrawal/requests/{id}/reject', [WithdrawalController::class, 'reject']);
-    Route::delete('/withdrawal/requests/{id}', [WithdrawalController::class, 'delete']);
-    //Route::get('withdrawal-requests', [WithdrawalRequestController::class, 'index']);
-    //Route::get('withdrawal-requests/{withdrawalRequest}', [WithdrawalRequestController::class, 'show']);
-    //Route::post('withdrawal-requests/{withdrawalRequest}/process', [WithdrawalRequestController::class, 'process']);
+    Route::middleware('permission:manage-withdrawals')->group(function () {
+        Route::get('/withdrawal/all', [WithdrawalController::class, 'index']);
+        Route::get('/withdrawal/requests', [WithdrawalController::class, 'getRequests']);
+        Route::post('/withdrawal/requests/{id}/approve', [WithdrawalController::class, 'approve']);
+        Route::post('/withdrawal/requests/{id}/reject', [WithdrawalController::class, 'reject']);
+        Route::delete('/withdrawal/requests/{id}', [WithdrawalController::class, 'delete']);
+        //Route::get('withdrawal-requests', [WithdrawalRequestController::class, 'index']);
+        //Route::get('withdrawal-requests/{withdrawalRequest}', [WithdrawalRequestController::class, 'show']);
+        //Route::post('withdrawal-requests/{withdrawalRequest}/process', [WithdrawalRequestController::class, 'process']);
+    });
 
+    
     // Routes de gestion des commissions
-    Route::get('/packs/{pack}/commission-rates', [PackController::class, 'getCommissionRates']);
-    Route::post('/packs/{pack}/commission-rate', [PackController::class, 'updateCommissionRate']);
+    Route::middleware('permission:manage-commissions')->group(function () {
+        Route::get('/commissions', [\App\Http\Controllers\Admin\CommissionController::class, 'index']);
+        Route::get('/commissions/statistics', [\App\Http\Controllers\Admin\CommissionController::class, 'statistics']);
+        Route::get('/commissions/packs', [\App\Http\Controllers\Admin\CommissionController::class, 'getPacks']);
+        Route::get('/commissions/common-errors', [\App\Http\Controllers\Admin\CommissionController::class, 'commonErrors']);
+        Route::get('/commissions/{id}', [\App\Http\Controllers\Admin\CommissionController::class, 'show']);
+        Route::post('/commissions/{id}/retry', [\App\Http\Controllers\Admin\CommissionController::class, 'retry']);
+    });
 
-    // Routes de gestion des bonus sur délais
-    Route::get('/packs/{packId}/bonus-rates', [PackController::class, 'getBonusRates']);
-    Route::post('/packs/{packId}/bonus-rates', [PackController::class, 'storeBonusRate']);
-    Route::put('/bonus-rates/{id}', [PackController::class, 'updateBonusRate']);
-    Route::delete('/bonus-rates/{id}', [PackController::class, 'deleteBonusRate']);
-    
-    // Routes pour la gestion des wallets
-    Route::get('/wallets/data', [WalletController::class, 'getWalletData']);
-    Route::post('/admin/wallets/withdraw', [WalletController::class, 'withdraw']);
+    Route::middleware('permission:manage-wallets')->group(function () {
+        // Routes pour la gestion des wallets
+        Route::get('/wallets/data', [WalletController::class, 'getWalletData']);
+        Route::post('/admin/wallets/withdraw', [WalletController::class, 'withdraw']);
+        Route::post('/wallet/funds-transfer', [App\Http\Controllers\Admin\WalletController::class, 'funds_transfer']);
+    });
 
-    // Routes pour les publicités
-    Route::get('/advertisements', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'index']);
-    Route::post('/advertisements/{id}/approve', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'approve']);
-    Route::post('/advertisements/{id}/reject', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'reject']);
-    Route::patch('/advertisements/{id}/status', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'updateStatus']);
-    Route::patch('/advertisements/{id}/etat', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'updateEtat']);
-    Route::delete('/advertisements/{id}', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'destroy']);
-    
-    // Routes pour les offres d'emploi
-    Route::get('/job-offers', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'index']);
-    Route::post('/job-offers/{id}/approve', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'approve']);
-    Route::post('/job-offers/{id}/reject', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'reject']);
-    Route::patch('/job-offers/{id}/status', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'updateStatus']);
-    Route::patch('/job-offers/{id}/etat', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'updateEtat']);
-    Route::delete('/job-offers/{id}', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'destroy']);
-    
-    // Routes pour les opportunités d'affaires
-    Route::get('/business-opportunities', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'index']);
-    Route::post('/business-opportunities/{id}/approve', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'approve']);
-    
-    // Routes pour les statuts sociaux
-    Route::get('/social-events', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'index']);
-    Route::post('/social-events/{id}/approve', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'approve']);
-    Route::post('/social-events/{id}/reject', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'reject']);
-    Route::patch('/social-events/{id}/status', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'updateStatus']);
-    Route::delete('/social-events/{id}', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'destroy']);
-    Route::post('/business-opportunities/{id}/reject', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'reject']);
-    Route::patch('/business-opportunities/{id}/status', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateStatus']);
-    Route::patch('/business-opportunities/{id}/etat', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateEtat']);
-    Route::delete('/business-opportunities/{id}', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'destroy']);
-
-    Route::post('/wallet/funds-transfer', [App\Http\Controllers\Admin\WalletController::class, 'funds_transfer']);
+    Route::middleware('permission:manage-validations')->group(function () {
+        // Routes pour les publicités
+        Route::get('/advertisements', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'index']);
+        Route::post('/advertisements/{id}/approve', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'approve']);
+        Route::post('/advertisements/{id}/reject', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'reject']);
+        Route::patch('/advertisements/{id}/status', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'updateStatus']);
+        Route::patch('/advertisements/{id}/etat', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'updateEtat']);
+        Route::delete('/advertisements/{id}', [App\Http\Controllers\Admin\AdvertisementValidationController::class, 'destroy']);
+        
+        // Routes pour les offres d'emploi
+        Route::get('/job-offers', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'index']);
+        Route::post('/job-offers/{id}/approve', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'approve']);
+        Route::post('/job-offers/{id}/reject', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'reject']);
+        Route::patch('/job-offers/{id}/status', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'updateStatus']);
+        Route::patch('/job-offers/{id}/etat', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'updateEtat']);
+        Route::delete('/job-offers/{id}', [App\Http\Controllers\Admin\JobOfferValidationController::class, 'destroy']);
+        // Routes pour les opportunités d'affaires
+        Route::get('/business-opportunities', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'index']);
+        Route::post('/business-opportunities/{id}/approve', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'approve']);
+        // Routes pour les statuts sociaux
+        Route::get('/social-events', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'index']);
+        Route::post('/social-events/{id}/approve', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'approve']);
+        Route::post('/social-events/{id}/reject', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'reject']);
+        Route::patch('/social-events/{id}/status', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'updateStatus']);
+        Route::delete('/social-events/{id}', [App\Http\Controllers\Admin\SocialEventAdminController::class, 'destroy']);
+        Route::post('/business-opportunities/{id}/reject', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'reject']);
+        Route::patch('/business-opportunities/{id}/status', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateStatus']);
+        Route::patch('/business-opportunities/{id}/etat', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'updateEtat']);
+        Route::delete('/business-opportunities/{id}', [App\Http\Controllers\Admin\BusinessOpportunityValidationController::class, 'destroy']);
+    });
     
     // Routes pour le tableau de bord administratif
     Route::get('/dashboard/cards', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getCards']);
@@ -506,92 +529,113 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::get('/dashboard/pack-stats', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getPackStats']);
     Route::get('/dashboard/data', [App\Http\Controllers\Admin\AdminDashboardController::class, 'getDashboardData']);
     
-    // Routes pour la gestion des pays autorisés
-    Route::get('/settings/countries', [App\Http\Controllers\Admin\CountrySettingsController::class, 'index']);
-    Route::post('/settings/countries', [App\Http\Controllers\Admin\CountrySettingsController::class, 'update']);
-    Route::put('/settings/countries/{countryCode}/toggle-status', [App\Http\Controllers\Admin\CountrySettingsController::class, 'toggleStatus']);
-    Route::post('/settings/countries/toggle-restriction', [App\Http\Controllers\Admin\CountrySettingsController::class, 'toggleGlobalRestriction']);
-    
-    // Routes pour la gestion des taux de change
-    Route::get('/exchange-rates', [App\Http\Controllers\Admin\ExchangeRatesController::class, 'index']);
-    Route::post('/exchange-rates/update', [App\Http\Controllers\Admin\ExchangeRatesController::class, 'update']);
-    
     // Routes pour la gestion des tickets gagnants
-    Route::get('/tickets/historique', [\App\Http\Controllers\JetonEsengoController::class, 'getHistoriqueTicketsConsommes']);
-    Route::get('/tickets/{code}', [\App\Http\Controllers\JetonEsengoController::class, 'verifierTicket']);
-    Route::post('/tickets/{id}/consommer', [\App\Http\Controllers\JetonEsengoController::class, 'consommerTicket']);
+    Route::middleware('permission:verify-tickets')->group(function () {
+        Route::get('/tickets/historique', [\App\Http\Controllers\JetonEsengoController::class, 'getHistoriqueTicketsConsommes']);
+        Route::get('/tickets/{code}', [\App\Http\Controllers\JetonEsengoController::class, 'verifierTicket']);
+        Route::post('/tickets/{id}/consommer', [\App\Http\Controllers\JetonEsengoController::class, 'consommerTicket']);
+    });
 
-    // Routes pour la gestion des cadeaux (jetons Esengo)
-    Route::prefix('/cadeaux')->group(function () {
-        Route::get('/', [\App\Http\Controllers\JetonEsengoController::class, 'getCadeaux']);
-        Route::post('/', [\App\Http\Controllers\JetonEsengoController::class, 'saveCadeau']);
-        Route::put('/{id}', [\App\Http\Controllers\JetonEsengoController::class, 'saveCadeau']);
-        Route::delete('/{id}', [\App\Http\Controllers\JetonEsengoController::class, 'deleteCadeau']);
+    Route::middleware('permission:manage-gifts')->group(function () {
+        // Routes pour la gestion des cadeaux (jetons Esengo)
+        Route::prefix('/cadeaux')->group(function () {
+            Route::get('/', [\App\Http\Controllers\JetonEsengoController::class, 'getCadeaux']);
+            Route::post('/', [\App\Http\Controllers\JetonEsengoController::class, 'saveCadeau']);
+            Route::put('/{id}', [\App\Http\Controllers\JetonEsengoController::class, 'saveCadeau']);
+            Route::delete('/{id}', [\App\Http\Controllers\JetonEsengoController::class, 'deleteCadeau']);
+        });
     });
     
-    // Route pour l'upload d'images des cadeaux
-    Route::post('/upload-image', [\App\Http\Controllers\JetonEsengoController::class, 'uploadImage']);
-
-    // Routes pour la gestion des paramètres système
-    Route::get('/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'index']);
-    Route::get('/settings/key/{key}', [\App\Http\Controllers\Admin\SettingsController::class, 'getByKey']);
-    Route::put('/settings/key/{key}', [\App\Http\Controllers\Admin\SettingsController::class, 'updateByKey']);
-    
-    // Routes pour la gestion des commissions
-    Route::get('/commissions', [\App\Http\Controllers\Admin\CommissionController::class, 'index']);
-    Route::get('/commissions/statistics', [\App\Http\Controllers\Admin\CommissionController::class, 'statistics']);
-    Route::get('/commissions/packs', [\App\Http\Controllers\Admin\CommissionController::class, 'getPacks']);
-    Route::get('/commissions/common-errors', [\App\Http\Controllers\Admin\CommissionController::class, 'commonErrors']);
-    Route::get('/commissions/{id}', [\App\Http\Controllers\Admin\CommissionController::class, 'show']);
-    Route::post('/commissions/{id}/retry', [\App\Http\Controllers\Admin\CommissionController::class, 'retry']);
-    
-    // Routes pour la gestion des finances
-    Route::get('/finances', [\App\Http\Controllers\Admin\FinanceController::class, 'index']);
-    Route::get('/finances/stats-by-type', [\App\Http\Controllers\Admin\FinanceController::class, 'getStatsByType']);
-    Route::get('/finances/stats-by-period', [\App\Http\Controllers\Admin\FinanceController::class, 'getStatsByPeriod']);
-    Route::get('/finances/transaction-types', [\App\Http\Controllers\Admin\FinanceController::class, 'getTransactionTypes']);
-    Route::get('/finances/system-balance', [\App\Http\Controllers\Admin\FinanceController::class, 'getSystemBalance']);
-    Route::get('/finances/summary', [\App\Http\Controllers\Admin\FinanceController::class, 'getSummary']);
-    
-    // Routes pour la gestion des points bonus
-    Route::get('/finances/bonus-points-history', [\App\Http\Controllers\Admin\FinanceController::class, 'getBonusPointsHistory']);
-    Route::get('/finances/bonus-points-stats', [\App\Http\Controllers\Admin\FinanceController::class, 'getBonusPointsStats']);
-    Route::get('/finances/bonus-points-types', [\App\Http\Controllers\Admin\FinanceController::class, 'getBonusPointsTypes']);
-    
-    // Routes pour la gestion administrative des FAQ
-    Route::get('/faqs', [\App\Http\Controllers\FaqController::class, 'index']);
-    Route::post('/faqs', [\App\Http\Controllers\FaqController::class, 'store']);
-    Route::get('/faqs/stats/views', [\App\Http\Controllers\FaqController::class, 'getViewStats']);
-    Route::put('/faqs/{id}/order', [\App\Http\Controllers\FaqController::class, 'updateOrder']);
-    Route::get('/faqs/{id}/related', [\App\Http\Controllers\FaqController::class, 'getRelatedFaqs']);
-    Route::post('/faqs/{id}/related', [\App\Http\Controllers\FaqController::class, 'addRelatedFaq']);
-    Route::delete('/faqs/{id}/related/{relatedId}', [\App\Http\Controllers\FaqController::class, 'removeRelatedFaq']);
-    Route::put('/faqs/{id}', [\App\Http\Controllers\FaqController::class, 'update']);
-    Route::delete('/faqs/{id}', [\App\Http\Controllers\FaqController::class, 'destroy']);
-    
-    // Routes pour la gestion des catégories de FAQ
-    Route::post('/faq/categories', [\App\Http\Controllers\FaqController::class, 'storeCategory']);
-    Route::put('/faq/categories/{id}', [\App\Http\Controllers\FaqController::class, 'updateCategory']);
-    Route::delete('/faq/categories/{id}', [\App\Http\Controllers\FaqController::class, 'destroyCategory']);
-    
-    // Routes pour la gestion des formations (admin)
-    Route::prefix('/formations')->group(function () {
-        Route::get('/', [\App\Http\Controllers\Admin\FormationController::class, 'index']);
-        Route::post('/', [\App\Http\Controllers\Admin\FormationController::class, 'store']);
-        Route::get('/packs', [\App\Http\Controllers\Admin\FormationController::class, 'getPacks']);
-        Route::get('/pending/count', [\App\Http\Controllers\Admin\FormationController::class, 'pendingCount']);
-        Route::get('/{id}', [\App\Http\Controllers\Admin\FormationController::class, 'show']);
-        Route::put('/{id}', [\App\Http\Controllers\Admin\FormationController::class, 'update']);
-        Route::delete('/{id}', [\App\Http\Controllers\Admin\FormationController::class, 'destroy']);
-        Route::post('/{id}/review', [\App\Http\Controllers\Admin\FormationController::class, 'reviewFormation']);
-        Route::post('/{id}/publish', [\App\Http\Controllers\Admin\FormationController::class, 'publish']);
+    Route::middleware('permission:view-finances')->group(function () {
+        // Routes pour la gestion des finances
+        Route::get('/finances', [\App\Http\Controllers\Admin\FinanceController::class, 'index']);
+        Route::get('/finances/stats-by-type', [\App\Http\Controllers\Admin\FinanceController::class, 'getStatsByType']);
+        Route::get('/finances/stats-by-period', [\App\Http\Controllers\Admin\FinanceController::class, 'getStatsByPeriod']);
+        Route::get('/finances/transaction-types', [\App\Http\Controllers\Admin\FinanceController::class, 'getTransactionTypes']);
+        Route::get('/finances/system-balance', [\App\Http\Controllers\Admin\FinanceController::class, 'getSystemBalance']);
+        Route::get('/finances/summary', [\App\Http\Controllers\Admin\FinanceController::class, 'getSummary']);
         
-        // Routes pour la gestion des modules (admin)
-        Route::post('/{formationId}/modules', [\App\Http\Controllers\Admin\FormationModuleController::class, 'store']);
-        Route::get('/{formationId}/modules', [\App\Http\Controllers\Admin\FormationModuleController::class, 'index']);
-        Route::get('/{formationId}/modules/{moduleId}', [\App\Http\Controllers\Admin\FormationModuleController::class, 'show']);
-        Route::delete('/{formationId}/modules/{moduleId}', [\App\Http\Controllers\Admin\FormationModuleController::class, 'destroy']);
-        Route::post('/{formationId}/modules/reorder', [\App\Http\Controllers\Admin\FormationModuleController::class, 'reorder']);
-        Route::post('/{formationId}/modules/{moduleId}/review', [\App\Http\Controllers\Admin\FormationModuleController::class, 'reviewModule']);
+        // Routes pour la gestion des points bonus
+        Route::get('/finances/bonus-points-history', [\App\Http\Controllers\Admin\FinanceController::class, 'getBonusPointsHistory']);
+        Route::get('/finances/bonus-points-stats', [\App\Http\Controllers\Admin\FinanceController::class, 'getBonusPointsStats']);
+        Route::get('/finances/bonus-points-types', [\App\Http\Controllers\Admin\FinanceController::class, 'getBonusPointsTypes']);
+    });
+    
+    Route::middleware('permission:manage-faqs')->group(function () {
+        // Routes pour la gestion administrative des FAQ
+        Route::get('/faqs', [\App\Http\Controllers\FaqController::class, 'index']);
+        Route::post('/faqs', [\App\Http\Controllers\FaqController::class, 'store']);
+        Route::get('/faqs/stats/views', [\App\Http\Controllers\FaqController::class, 'getViewStats']);
+        Route::put('/faqs/{id}/order', [\App\Http\Controllers\FaqController::class, 'updateOrder']);
+        Route::get('/faqs/{id}/related', [\App\Http\Controllers\FaqController::class, 'getRelatedFaqs']);
+        Route::post('/faqs/{id}/related', [\App\Http\Controllers\FaqController::class, 'addRelatedFaq']);
+        Route::delete('/faqs/{id}/related/{relatedId}', [\App\Http\Controllers\FaqController::class, 'removeRelatedFaq']);
+        Route::put('/faqs/{id}', [\App\Http\Controllers\FaqController::class, 'update']);
+        Route::delete('/faqs/{id}', [\App\Http\Controllers\FaqController::class, 'destroy']);
+        
+        // Routes pour la gestion des catégories de FAQ
+        Route::post('/faq/categories', [\App\Http\Controllers\FaqController::class, 'storeCategory']);
+        Route::put('/faq/categories/{id}', [\App\Http\Controllers\FaqController::class, 'updateCategory']);
+        Route::delete('/faq/categories/{id}', [\App\Http\Controllers\FaqController::class, 'destroyCategory']);
+    });
+    
+    Route::middleware('permission:manage-courses')->group(function () {
+        // Routes pour la gestion des formations (admin)
+        Route::prefix('/formations')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\FormationController::class, 'index']);
+            Route::post('/', [\App\Http\Controllers\Admin\FormationController::class, 'store']);
+            Route::get('/packs', [\App\Http\Controllers\Admin\FormationController::class, 'getPacks']);
+            Route::get('/pending/count', [\App\Http\Controllers\Admin\FormationController::class, 'pendingCount']);
+            Route::get('/{id}', [\App\Http\Controllers\Admin\FormationController::class, 'show']);
+            Route::put('/{id}', [\App\Http\Controllers\Admin\FormationController::class, 'update']);
+            Route::delete('/{id}', [\App\Http\Controllers\Admin\FormationController::class, 'destroy']);
+            Route::post('/{id}/review', [\App\Http\Controllers\Admin\FormationController::class, 'reviewFormation']);
+            Route::post('/{id}/publish', [\App\Http\Controllers\Admin\FormationController::class, 'publish']);
+            
+            // Routes pour la gestion des modules (admin)
+            Route::post('/{formationId}/modules', [\App\Http\Controllers\Admin\FormationModuleController::class, 'store']);
+            Route::get('/{formationId}/modules', [\App\Http\Controllers\Admin\FormationModuleController::class, 'index']);
+            Route::get('/{formationId}/modules/{moduleId}', [\App\Http\Controllers\Admin\FormationModuleController::class, 'show']);
+            Route::delete('/{formationId}/modules/{moduleId}', [\App\Http\Controllers\Admin\FormationModuleController::class, 'destroy']);
+            Route::post('/{formationId}/modules/reorder', [\App\Http\Controllers\Admin\FormationModuleController::class, 'reorder']);
+            Route::post('/{formationId}/modules/{moduleId}/review', [\App\Http\Controllers\Admin\FormationModuleController::class, 'reviewModule']);
+        });
+    });
+    
+    // Routes pour la gestion des rôles et permissions (super-admin uniquement)
+    Route::middleware('permission:manage-system')->group(function () {
+        // Routes pour la gestion des frais de transaction
+        Route::get('/transaction-fees', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'index']);
+        Route::post('/transaction-fees', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'store']);
+        Route::get('/transaction-fees/{id}', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'show']);
+        Route::put('/transaction-fees/{id}', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'update']);
+        Route::delete('/transaction-fees/{id}', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'destroy']);
+        Route::post('/transaction-fees/{id}/toggle-active', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'toggleActive']);
+        Route::post('/transaction-fees/update-from-api', [\App\Http\Controllers\Admin\TransactionFeeController::class, 'updateFromApi']);
+        
+        // Routes pour la gestion des pays autorisés
+        Route::get('/settings/countries', [App\Http\Controllers\Admin\CountrySettingsController::class, 'index']);
+        Route::post('/settings/countries', [App\Http\Controllers\Admin\CountrySettingsController::class, 'update']);
+        Route::put('/settings/countries/{countryCode}/toggle-status', [App\Http\Controllers\Admin\CountrySettingsController::class, 'toggleStatus']);
+        Route::post('/settings/countries/toggle-restriction', [App\Http\Controllers\Admin\CountrySettingsController::class, 'toggleGlobalRestriction']);
+        
+        // Routes pour la gestion des taux de change
+        Route::get('/exchange-rates', [App\Http\Controllers\Admin\ExchangeRatesController::class, 'index']);
+        Route::post('/exchange-rates/update', [App\Http\Controllers\Admin\ExchangeRatesController::class, 'update']);
+        
+        // Routes pour la gestion des paramètres système
+        Route::get('/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'index']);
+        Route::get('/settings/key/{key}', [\App\Http\Controllers\Admin\SettingsController::class, 'getByKey']);
+        Route::put('/settings/key/{key}', [\App\Http\Controllers\Admin\SettingsController::class, 'updateByKey']);
+    
+        Route::prefix('/roles')->group(function () {    
+            Route::get('/', [\App\Http\Controllers\RoleController::class, 'index']);
+            Route::get('/{id}', [\App\Http\Controllers\RoleController::class, 'show']);
+            Route::post('/', [\App\Http\Controllers\RoleController::class, 'store']);
+            Route::put('/{id}', [\App\Http\Controllers\RoleController::class, 'update']);
+            Route::delete('/{id}', [\App\Http\Controllers\RoleController::class, 'destroy']);
+            Route::get('/permissions/all', [\App\Http\Controllers\RoleController::class, 'permissions']);
+            Route::post('/assign-to-user', [\App\Http\Controllers\RoleController::class, 'assignRoleToUser']);
+        });
     });
 });
